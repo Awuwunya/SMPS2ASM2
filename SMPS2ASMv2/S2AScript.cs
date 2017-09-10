@@ -376,7 +376,8 @@ namespace SMPS2ASMv2 {
 					}
 				}
 			}
-			Debug(new string('-', 80));
+
+			if(debug) Debug(new string('-', 80));
 		}
 
 		// safe method for getting subscripts

@@ -44,9 +44,11 @@ namespace SMPS2ASMv2 {
 			int last = 0;
 
 			for(int i = 0; i < lines.Length;i++) {
-				s += new string('\t', (LineAlign[i] - last - 1) / 8 + 1);    // divide by tab len. If its 4, though. Maybe I can add an option later...
-				s += lines[i];
-				last = LineAlign[i] + lines[i].Length;	// index of characters last in string
+				if (lines[i].Length > 0) {
+					s += new string('\t', (LineAlign[i] - last - 1) / 8 + 1);    // divide by tab len. If its 4, though. Maybe I can add an option later...
+					s += lines[i];
+					last = LineAlign[i] + lines[i].Length;  // index of characters last in string
+				}
 			}
 
 			// finally put out
@@ -134,7 +136,8 @@ namespace SMPS2ASMv2 {
 			Lables = new List<OffsetString>();
 			Lines = new List<OffsetString>();
 			data = File.ReadAllBytes(filein);
-			skipped = new bool[data.Length];
+			skipped = new bool[data.Length + 1];
+			skipped[data.Length] = true; // skip last byte for output
 			if (debug) Debug(new string('-', 80));
 
 			// run conveter
@@ -233,6 +236,8 @@ namespace SMPS2ASMv2 {
 			if (o.offset == null)
 				error("Pointer to the lable is null! This seems like a programming error. Report to developers.");
 
+			if (!IsValidLocation(o)) return;
+
 			pos = (uint)(o.offset - offset);
 			if(o.line != null) Console.WriteLine("Parsing " + o.line + " at " + toHexString((double)o.offset, 4) + "...");
 			if (debug) Debug("--: "+ o.line +" "+ toHexString((double)o.offset, 4) +" LUT="+ (LUT != null) +" run="+ (run != null));
@@ -271,6 +276,19 @@ namespace SMPS2ASMv2 {
 					if (stop) break;
 				}
 			}
+		}
+
+		// check if the string is in a valid location
+		private bool IsValidLocation(OffsetString o) {
+			if (o.offset == null) return false;
+			if (o.offset >= offset && o.offset < offset + data.Length) return true;
+
+			// if invalid, put in a lable at the end
+			bool pp = o.offset > offset;
+			long offs = (pp ? (uint)o.offset - offset - data.Length : offset - (uint)o.offset);
+			AddLine((uint)data.Length, 0, "\t; " + o.line + " at " + toHexString((uint)o.offset, 4) + " (" + toHexString(offs, 1) + ' ' + (pp ? "after end of" : "before start of") + " file) can not be converted, because the data does not exist.");
+			if(debug) Debug("--. Unaccessible lable found at " + toHexString((uint)o.offset, 4));
+			return false;
 		}
 
 		// get a list of lables that match regex. Lables may additionally use £ to get the base lable (user input) and ? for regex anything matches.
@@ -328,7 +346,7 @@ namespace SMPS2ASMv2 {
 					return true;
 
 				case ScriptItemType.ArrayItem:
-					pos++;
+					SkipByte(pos++);
 					return ProcessItem((lut[d] as ScriptArrayItem).Optimized, str, out stop, out text);
 
 				case ScriptItemType.Import:
@@ -503,9 +521,9 @@ namespace SMPS2ASMv2 {
 						if(!ObtainValidLable(Parse.GetAllOperators(lmod.lable, i.parent), n, out args[lmod.num], out OffsetString lab))
 							cvterror(i, "Failed to fetch a valid lable with format '"+ Parse.ParseNumber(lmod.lable.Replace("£", baselable), i.line, i.parent) + "' at line "+ i.line +": Lable already taken.");
 
-						if (debug) Debug(pos + offset, i.line, i.identifier, '~' + args[lmod.num] +" :"+ lmod.num + ' ' + toHexString((uint)lab.offset, 4));
+						if (debug) Debug(pos + offset, i.line, i.identifier, '~' + args[lmod.num] +" :"+ lmod.num + ' ' + (lab != null ? toHexString((uint)lab.offset, 4) : "NULL"));
 
-						if (followlables && lab != null && !skipped[(uint)lab.offset - offset]) {
+						if (followlables && lab != null && (uint)lab.offset - offset < skipped.Length && !skipped[(uint)lab.offset - offset]) {
 							uint pos2 = pos;
 							Convert(lab, StoredLUT, StoredRun, false, out string fuck);
 							pos = pos2;
@@ -575,7 +593,7 @@ namespace SMPS2ASMv2 {
 			// skip all bytes and create debug stuff
 			for (int x = 0;x < ma.pre.Length;x++) {
 				if (debug) db += ", " + toHexString(data[pos], 2);
-				SkipByte(pos++);
+				pos++;
 			}
 
 			// fix debug stuff

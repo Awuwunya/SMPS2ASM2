@@ -88,7 +88,14 @@ namespace SMPS2ASMv2 {
 		}
 
 		public static int ParseInt(string val, uint? lnum, ScriptArray scra) {
-			return Int32.Parse(ParseNumber(val, lnum, scra));
+			try {
+				return Int32.Parse(val = ParseNumber(val, lnum, scra));
+
+			} catch (Exception) {
+				Console.WriteLine("WARNING: Possibly dangerous casting from double to int! Value of '" + val + "' is not an integer.");
+				// warn: This may not be safe! Need to investigate further I think
+				return (int)Double.Parse(val);
+			}
 		}
 
 		public static uint ParseUint(string val, uint? lnum, ScriptArray scra) {
