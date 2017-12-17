@@ -20,6 +20,12 @@ namespace SMPS2ASMv2 {
 		public static bool pause, debug;
 		private static StreamWriter dbWr;
 
+		// check file name (special)
+		public static string chkfilext2(string data, bool ret) {
+			string d = Directory.GetFiles(folder, data, SearchOption.AllDirectories).FirstOrDefault();
+			return ret ? d : d != null ? null : "Input file '" + data + "' does not exist!";
+		}
+
 		// check file name
 		public static string chkfilext(string data, bool ret) {
 			string d = folder + "\\music\\" + data;
@@ -82,13 +88,41 @@ namespace SMPS2ASMv2 {
 
 			// args[input file with ext, Sound driver name, label, extra: may be used by script]
 			// get the exe folder
-			folder = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(System.Environment.CurrentDirectory), @""));
+			folder = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Environment.CurrentDirectory), @""));
 			string[] a = args;
 
 			//check if we have a debug option
 			if(args.Length > 0 && args[0] == "-d") {
 				args = args.Skip(1).ToArray();
 				debug = true;
+			}
+
+			//check if a script file was dragged in
+			if(args.Length > 0) {
+				if(File.Exists(args[0]) && args[0].EndsWith(".smpss")) {
+					string script = args[0];
+					args = args.Skip(1).ToArray();
+
+					// check if all arguments are gotten
+					if (args.Length < 2) {
+						pause = true;
+						args = ConsoleArguments.Get(args, new ArgHandler[] {
+					new ArgHandler("Music file name with extension:", chkfilext2),
+					new ArgHandler("Project name:", chkname), }, new ButtonHandler[]{
+					new ButtonHandler(ConsoleKey.Escape, "Quit the program", quitprg, quitcl),
+					new ButtonHandler(ConsoleKey.F1, "Pause program at the end", pauseprg, pausecl),
+					new ButtonHandler(ConsoleKey.F2, "Print debug info", debugprg, debugcl),
+					});
+
+					} else {
+						args[0] = chkfilext2(args[0], true);
+						args[1] = chkname(args[1], true);
+					}
+
+					args = new string[] { args[0], script, args[1] };
+
+					goto oops;
+				}
 			}
 
 			// check if all arguments are gotten
@@ -108,8 +142,9 @@ namespace SMPS2ASMv2 {
 				args[1] = chkfolext(args[1], true);
 				args[2] = chkname(args[2], true);
 			}
-			
+
 			// time how long this will take
+			oops:
 			timer = new Stopwatch();
 			timer.Start();
 			
@@ -142,9 +177,9 @@ namespace SMPS2ASMv2 {
 				Debug("--; args=["+ string.Join(", ", a) +"]");
 				Debug("--; filein=" + args[0]);
 				Debug("--; fileout="+ fileout);
+				Debug("--; folder=" + folder);
 				Debug("--; script=" + args[1]);
 				Debug("--; lable=" + args[2]);
-				Debug("--; folder=" + folder);
 			}
 
 			// get new SMPS object

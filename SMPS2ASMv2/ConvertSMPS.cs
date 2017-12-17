@@ -557,6 +557,25 @@ namespace SMPS2ASMv2 {
 						}
 						break;
 
+					case ScriptItemType.Print: {
+							// get the comment, and replace any case of escaped { and } with temp chars
+							string comm = (i as ScriptPrint).comment;
+							uint pos2 = pos;
+
+							// translate all the conversion things
+							while (comm.Contains("{") && comm.Contains("}")) {
+								int i1 = comm.IndexOf('{'), i2 = comm.IndexOf('}');
+								string arg = Parse.ParseNumber(comm.Substring(i1 + 1, i2 - i1 - 1), i.line, i.parent);
+								comm = comm.Substring(0, i1) + arg + comm.Substring(i2 + 1);
+							}
+
+							if (debug) Debug(pos + offset, i.line, i.identifier, '%' + comm);
+							comm = comm.Replace("\\t", "\t").Replace("\\r", "\r").Replace("\\n", "\n");
+							// add the comment
+							Console.WriteLine(comm);
+						}
+						break;
+
 					case ScriptItemType.ArrayItem:
 						break;
 

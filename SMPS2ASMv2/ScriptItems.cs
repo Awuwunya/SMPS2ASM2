@@ -21,7 +21,7 @@ namespace SMPS2ASMv2 {
 		NULL = 0, Equate, Macro, Operation,
 		Condition, Repeat, Goto, Stop,
 		Executable, Import, ArgMod,
-		LableMod, LableDo, Comment,
+		LableMod, LableDo, Comment, Print,
 		ArrayItem, // SPECIAL
 	}
 
@@ -197,6 +197,14 @@ namespace SMPS2ASMv2 {
 		public string comment;
 
 		public ScriptComment(uint lnum, ScriptArray parent, string comment) : base(lnum, parent, "COM", ScriptItemType.Comment) {
+			this.comment = comment;
+		}
+	}
+
+	public class ScriptPrint : GenericScriptItem {
+		public string comment;
+
+		public ScriptPrint(uint lnum, ScriptArray parent, string comment) : base(lnum, parent, "PRI", ScriptItemType.Print) {
 			this.comment = comment;
 		}
 	}

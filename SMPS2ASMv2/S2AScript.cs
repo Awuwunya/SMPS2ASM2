@@ -356,14 +356,19 @@ namespace SMPS2ASMv2 {
 								if (debug) Debug(lnum,tabs, '>' + ttype +' '+ line);
 								break;
 
+							case ';':
+								stack.Peek().Add(new ScriptStop(lnum, stack.Peek()));
+								if (debug) Debug(lnum, tabs, ";");
+								break;
+
 							case '%':
 								stack.Peek().Add(new ScriptComment(lnum, stack.Peek(), line.Substring(1)));
 								if (debug) Debug(lnum,tabs, line);
 								break;
 
-							case ';':
-								stack.Peek().Add(new ScriptStop(lnum, stack.Peek()));
-								if (debug) Debug(lnum,tabs, ";");
+							case '+':
+								stack.Peek().Add(new ScriptPrint(lnum, stack.Peek(), line.Substring(1)));
+								if (debug) Debug(lnum, tabs, line);
 								break;
 
 							default:
