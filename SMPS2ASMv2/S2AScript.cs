@@ -17,12 +17,12 @@ namespace SMPS2ASMv2 {
 			error("smps2asm.smpss:" + lnum + ": " + v);
 		}
 
-		public S2AScript(string script, string[] args) {
+		public S2AScript(string script, string[] args, string type) {
 			context = this;
 
 			Console.WriteLine("Parsing script...");
 			try {
-				ParseScript(File.ReadAllText(script).Replace("\t", "").Replace("\r", ""), args);
+				ParseScript("=type '"+ type.ToLowerInvariant() +"'\n"+ File.ReadAllText(script).Replace("\t", "").Replace("\r", ""), args);
 			} catch(Exception e) {
 				error(e.ToString());
 			}
@@ -34,7 +34,7 @@ namespace SMPS2ASMv2 {
 			// create stack to push and pop items from. Allow for simpler code
 			Stack<ScriptArray> stack = new Stack<ScriptArray>();
 			{
-				// create the default subscript allowing for code initialization. Parent is null
+				// create the default subscript allowing for code initialization. Parent is null.
 				ScriptArray f = new ScriptArray(null);
 				stack.Push(f);
 				subscripts.Add("", f);

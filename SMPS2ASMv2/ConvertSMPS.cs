@@ -22,7 +22,7 @@ namespace SMPS2ASMv2 {
 		public bool followlables = false;// set to true, if we also want to follow new lables
 
 		// these will be gotten from the topmost script
-		public string endian = null; // "big" or "little"
+		public string endian = null; // 'big' or 'little'
 		public uint offset = 0;    // offset of the 0th byte of the file. Usually Z80 address where file starts
 
 		public void cvterror(GenericScriptItem i, string v) {
@@ -94,10 +94,10 @@ namespace SMPS2ASMv2 {
 
 		// read word, respect to the endianness
 		public ushort ReadWord(uint addr) {
-			if(endian.ToLower() == "\"little\"") {
+			if(endian.ToLower() == "'little'") {
 				return (ushort)((data[addr]) | ((data[addr + 1] << 8)));
 
-			} else if(endian.ToLower() == "\"big\"") {
+			} else if(endian.ToLower() == "'big'") {
 				return (ushort)((data[addr + 1]) | ((data[addr] << 8)));
 
 			} else error("Endian '"+ endian +"' is not recognized!");
@@ -404,12 +404,12 @@ namespace SMPS2ASMv2 {
 						string[] null_ = null;
 
 						if (Parse.ParseBool(cond.condition, cond.line, cond.parent)) {
-							ConvertRun(cond.True.Items, ref null_, out stop, out comment);
 							if (debug) Debug(pos + offset, i.line, i.identifier, "¤ " + cond.condition + " (true)");
+							ConvertRun(cond.True.Items, ref null_, out stop, out comment);
 
 						} else {
-							ConvertRun(cond.False.Items, ref null_, out stop, out comment);
 							if (debug) Debug(pos + offset, i.line, i.identifier, "¤ " + cond.condition + " (false)");
+							ConvertRun(cond.False.Items, ref null_, out stop, out comment);
 						}
 						break;
 
@@ -569,7 +569,7 @@ namespace SMPS2ASMv2 {
 								comm = comm.Substring(0, i1) + arg + comm.Substring(i2 + 1);
 							}
 
-							if (debug) Debug(pos + offset, i.line, i.identifier, '%' + comm);
+							if (debug) Debug(pos + offset, i.line, i.identifier, '+' + comm);
 							comm = comm.Replace("\\t", "\t").Replace("\\r", "\r").Replace("\\n", "\n");
 							// add the comment
 							Console.WriteLine(comm);

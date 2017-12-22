@@ -16,7 +16,7 @@ namespace SMPS2ASMv2 {
 			Environment.Exit(-1);
 		}
 
-		public static string folder;
+		public static string folder, type = "";
 		public static bool pause, debug;
 		private static StreamWriter dbWr;
 
@@ -35,11 +35,13 @@ namespace SMPS2ASMv2 {
 		// check folder name
 		public static string chkfolext(string data, bool ret) {
 			if (!data.Contains('.')) {
+				type = "";
 				string d = folder +"\\SMPS\\"+ data + "\\smps2asm.smpss";
 				return ret ? d : File.Exists(d) ? null : "Script file '" + d.Replace(folder, "") + "' does not exist!";
 
 			} else {
-				string d = folder + "\\SMPS\\" + data.Split('.')[0] + "\\smps2asm." + data.Split('.')[1] + ".smpss";
+				type = data.Split('.')[1];
+				string d = folder + "\\SMPS\\" + data.Split('.')[0] + "\\smps2asm.smpss";
 				return ret ? d : File.Exists(d) ? null : "Script file '" + d.Replace(folder, "") + "' does not exist!";
 			}
 		}
@@ -180,13 +182,14 @@ namespace SMPS2ASMv2 {
 				Debug("--; folder=" + folder);
 				Debug("--; script=" + args[1]);
 				Debug("--; lable=" + args[2]);
+				Debug("--; type=" + type);
 			}
 
 			// get new SMPS object
 			ConvertSMPS cvt = new ConvertSMPS(args[0], fileout, args[2]);
 
 			// get the file for smps2asm script
-			S2AScript scr = new S2AScript(args[1], args.Skip(3).ToArray());
+			S2AScript scr = new S2AScript(args[1], args.Skip(3).ToArray(), type);
 
 			// print timer info
 			long tra = timer.ElapsedMilliseconds;
@@ -215,7 +218,14 @@ namespace SMPS2ASMv2 {
 			Console.WriteLine("File saved to disk! Took " + pot + " ms!");
 			Console.WriteLine("Conversion done! Took " + (pot + tra + con) + " ms!");
 
-			if (debug) dbWr.Flush();
+			if (debug) {
+				Debug(new string('-', 80));
+				Debug("--; Time for Script " + tra + " ms");
+				Debug("--; Time for Convert " + con + " ms");
+				Debug("--; Time for Save " + pot + " ms");
+				Debug("--; Time for Total " + (pot + tra + con) + " ms");
+				dbWr.Flush();
+			}
 			if (pause) Console.ReadKey();
 		}
 
