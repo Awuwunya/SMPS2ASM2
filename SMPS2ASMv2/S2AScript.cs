@@ -89,17 +89,6 @@ namespace SMPS2ASMv2 {
 								}
 								break;
 
-							case '¤':
-								// ehhhhhhh =/
-								if(!line.EndsWith("{"))
-									screrr(lnum, "No opening script block.");
-								// create the condition block, and push true block in stack
-								co.Push(new ScriptCondition(lnum, stack.Peek(), line.Substring(1, line.Length - 2).Trim(trim)));
-								stack.Peek().Add(co.Peek());
-								stack.Push(co.Peek().True);
-								if (debug) Debug(lnum,tabs++, "¤ "+ line.Substring(1, line.Length - 2).Trim(trim) +" {");
-								break;
-
 							case '?':
 								if (line.Length < 3) {
 									// if line is too short, it is a major problem
@@ -289,7 +278,18 @@ namespace SMPS2ASMv2 {
 								stack.Peek().Add(new ScriptEquate(lnum, stack.Peek(), eqq, da));
 								break;
 
-							case '*':
+							case 'c':
+								// ehhhhhhh =/
+								if (!line.EndsWith("{"))
+									screrr(lnum, "No opening script block.");
+								// create the condition block, and push true block in stack
+								co.Push(new ScriptCondition(lnum, stack.Peek(), line.Substring(1, line.Length - 2).Trim(trim)));
+								stack.Peek().Add(co.Peek());
+								stack.Push(co.Peek().True);
+								if (debug) Debug(lnum, tabs++, "¤ " + line.Substring(1, line.Length - 2).Trim(trim) + " {");
+								break;
+
+							case 'f':
 								// check for { at the end of line
 								int inde = line.IndexOf('{');
 								if (inde == -1 || !line.EndsWith("{")) screrr(lnum, "Expected block start ('{') at end of line, but found none.");
@@ -298,6 +298,17 @@ namespace SMPS2ASMv2 {
 								stack.Peek().Add(r);
 								stack.Push(r.Inner);
 								if (debug) Debug(lnum,tabs++, "* " + counter +" {");
+								break;
+
+							case 'w':
+								// check for { at the end of line
+								int ine = line.IndexOf('{');
+								if (ine == -1 || !line.EndsWith("{")) screrr(lnum, "Expected block start ('{') at end of line, but found none.");
+								string cond = line.Substring(1, ine - 1).Trim(trim);
+								ScriptWhile w = new ScriptWhile(lnum, stack.Peek(), cond);
+								stack.Peek().Add(w);
+								stack.Push(w.Inner);
+								if (debug) Debug(lnum, tabs++, "w " + cond + " {");
 								break;
 
 							case ':':

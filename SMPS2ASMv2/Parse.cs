@@ -203,16 +203,10 @@ namespace SMPS2ASMv2 {
 						// if does not exist, error
 						if (tr == null) error("Could not find equate '" + s.Substring(i, o - i) + "'");
 
-						// if not calculated, calculate. Also set a, so to either get string of value
-						bool a;
-						if (!tr.calculated)
-							a = tr.Evaluate(scra);
-						else a = true;
-
-						// now plop in the value
-						s = s.Substring(0, i - 1) + (a ? tr.value + "" : tr.val) + s.Substring(o + 1, s.Length - o - 1);
+						// get the proper value of the equate
+						s = s.Substring(0, i - 1) + tr.GetValue() + s.Substring(o + 1, s.Length - o - 1);
 					} else
-						// now plop in the value
+						// we fucked it up, put in null
 						s = s.Substring(0, i - 1) +  "null" + s.Substring(o + 1, s.Length - o - 1);
 				}
 
@@ -331,6 +325,9 @@ namespace SMPS2ASMv2 {
 						}
 						return "" + off;
 					}
+
+				case "ms":
+					return "" + timer.ElapsedMilliseconds;
 			}
 
 			error("Could not resolve argument '" + s + "'");

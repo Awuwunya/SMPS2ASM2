@@ -19,7 +19,7 @@ namespace SMPS2ASMv2 {
 
 	public enum ScriptItemType {
 		NULL = 0, Equate, Macro, Operation,
-		Condition, Repeat, Goto, Stop,
+		Condition, Repeat, While, Goto, Stop,
 		Executable, Import, ArgMod,
 		LableMod, LableDo, Comment, Print,
 		ArrayItem, // SPECIAL
@@ -34,7 +34,7 @@ namespace SMPS2ASMv2 {
 			this.equ = equ;
 			this.val = val;
 
-			if(val.Contains("\\") || val.Contains(".") || val.Contains("\"")) calculated = false;
+			if(val.Contains("\\") || val.Contains(".") || val.Contains("'")) calculated = false;
 			else {
 				value = Parse.ParseDouble(val, lnum, null);
 				calculated = !Double.IsNaN(value);
@@ -47,7 +47,7 @@ namespace SMPS2ASMv2 {
 
 		public bool Evaluate(ScriptArray scra) {
 			// if string or calculated, return
-			if (val.Contains("\"")) return false;
+			if (val.Contains("'")) return false;
 			if (calculated) return true;
 
 			// evaluate equate
@@ -64,8 +64,20 @@ namespace SMPS2ASMv2 {
 			} else {
 				// else, save the new value to the equate and return
 				e.value = value;
-				e.val = "" + value;
 				return true;
+			}
+		}
+
+		// used for returning value correctly. Tries to avoid returning unusable crap. But it still can.
+		public string GetValue() {
+			if (val.Contains("'")) return val;
+			else if(calculated || val.Contains("\\") || val.Contains(".")) return value + "";
+
+			if (Evaluate(parent)) {
+				return value + "";
+
+			} else {
+				return val;
 			}
 		}
 	}
@@ -175,6 +187,16 @@ namespace SMPS2ASMv2 {
 		}
 	}
 
+	public class ScriptWhile : GenericScriptItem {
+		public string cond;
+		public ScriptArray Inner;
+
+		public ScriptWhile(uint lnum, ScriptArray parent, string cond) : base(lnum, parent, "WHI", ScriptItemType.While) {
+			this.cond = cond;
+			Inner = new ScriptArray(parent);
+		}
+	}
+
 	public class ScriptArgMod : GenericScriptItem {
 		public int num;
 		public ScriptArray Inner;
@@ -257,7 +279,7 @@ namespace SMPS2ASMv2 {
 			foreach (GenericScriptItem entry in Items) {
 				switch (entry.type) {
 					case ScriptItemType.NULL:
-						S2AScript.screrr(entry.line, "Type of item is NULL! This is most likely a programming error in SMPS2ASM!");
+						screrr(entry.line, "Type of item is NULL! This is most likely a programming error in SMPS2ASM!");
 						break;
 
 					case ScriptItemType.Equate:
@@ -267,11 +289,11 @@ namespace SMPS2ASMv2 {
 						// get offset
 						int v;
 						if (!Parse.DoubleToInt(eq.value, out v))
-							S2AScript.screrr(entry.line, "Equate value can not be accurately converted from double floating point to int! Equate with contents '" + eq.val + "' failed to be conveted to 32-bit signed integer.");
+							screrr(entry.line, "Equate value can not be accurately converted from double floating point to int! Equate with contents '" + eq.val + "' failed to be conveted to 32-bit signed integer.");
 
 						// save entry or throw error.
 						if (Optimized[v] == null) Optimized[v] = entry;
-						else S2AScript.screrr(entry.line, "Entity " + entry.identifier + " conflicts with " + Optimized[v].identifier + " at line " + Optimized[v].line +
+						else screrr(entry.line, "Entity " + entry.identifier + " conflicts with " + Optimized[v].identifier + " at line " + Optimized[v].line +
 							", both trying to occupy the value " + v + " (0x" + v.ToString("X2") + ")! Optimization requires no such conflicts.");
 						break;
 
@@ -291,7 +313,7 @@ namespace SMPS2ASMv2 {
 								else if (Optimized[i].type == ScriptItemType.ArrayItem)
 									(Optimized[i] as ScriptArrayItem).CombineFree(ma);
 
-								else S2AScript.screrr(entry.line, "Entity " + entry.identifier + " conflicts with " + Optimized[i].identifier + " at line " + Optimized[i].line +
+								else screrr(entry.line, "Entity " + entry.identifier + " conflicts with " + Optimized[i].identifier + " at line " + Optimized[i].line +
 										", both trying to occupy the value " + i + " (0x" + i.ToString("X2") + ")! Optimization requires no such conflicts.");
 							} else {
 								if (Optimized[i] == null) {
@@ -301,34 +323,25 @@ namespace SMPS2ASMv2 {
 								} else if (Optimized[i].type == ScriptItemType.ArrayItem)
 									(Optimized[i] as ScriptArrayItem).Combine(ma, 1);
 
-								else S2AScript.screrr(entry.line, "Entity " + entry.identifier + " conflicts with " + Optimized[i].identifier + " at line " + Optimized[i].line +
+								else screrr(entry.line, "Entity " + entry.identifier + " conflicts with " + Optimized[i].identifier + " at line " + Optimized[i].line +
 									 ", both trying to occupy the value " + i + " (0x" + i.ToString("X2") + ")! Optimization requires no such conflicts.");
 							}
 						}
 						break;
 
 					case ScriptItemType.ArrayItem:
-						S2AScript.screrr(entry.line, "Unoptimized list contains a pre-occupied technical element that may not be interpreted. This is likely a programming error, please report to devs!");
+						screrr(entry.line, "Unoptimized list contains a pre-occupied technical element that may not be interpreted. This is likely a programming error, please report to devs!");
 						break;
 
 					case ScriptItemType.Import:
-						ScriptArray sc = S2AScript.context.GetSubscript((entry as ScriptImport).name);
+						ScriptArray sc = context.GetSubscript((entry as ScriptImport).name);
 						if (sc.Optimized == null) sc.Optimize();
 						Optimized = ConvertSMPS.context.Combine(new GenericScriptItem[][] { Optimized, sc.Optimized });
 						break;
 
 					// all these items are invalid inside the LUT.
-					case ScriptItemType.Operation:
-					case ScriptItemType.Condition:
-					case ScriptItemType.Repeat:
-					case ScriptItemType.Goto:
-					case ScriptItemType.Stop:
-					case ScriptItemType.Executable:
-					case ScriptItemType.ArgMod:
-					case ScriptItemType.LableMod:
-					case ScriptItemType.LableDo:
-					case ScriptItemType.Comment:
-						S2AScript.screrr(entry.line, "Optimized look-up-table may only contain unoptimizable elements! Look-up-tables may contain either Equates, or macros.");
+					default:
+						screrr(entry.line, "Optimized look-up-table may only contain unoptimizable elements! Look-up-tables may contain either Equates, or macros.");
 						break;
 				}
 			}
@@ -355,7 +368,7 @@ namespace SMPS2ASMv2 {
 	public class ScriptArrayItem : GenericScriptItem {
 		public GenericScriptItem[] Optimized;
 
-		public ScriptArrayItem(ScriptArray parent) : base(S2AScript.arrayID++, parent, "SAI", ScriptItemType.ArrayItem) {
+		public ScriptArrayItem(ScriptArray parent) : base(arrayID++, parent, "SAI", ScriptItemType.ArrayItem) {
 			Optimized = new GenericScriptItem[0x100];
 		}
 

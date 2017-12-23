@@ -26,7 +26,7 @@ namespace SMPS2ASMv2 {
 		public uint offset = 0;    // offset of the 0th byte of the file. Usually Z80 address where file starts
 
 		public void cvterror(GenericScriptItem i, string v) {
-			error("smps2asm.smpss:" + i.line + ": " + v);
+			error("smps2asm.smpss:" + (i != null ? i.line +"" : "null") + ": " + v);
 		}
 		
 		private void AddLine(uint pos, uint len, ScriptEquate s) {
@@ -94,6 +94,8 @@ namespace SMPS2ASMv2 {
 
 		// read word, respect to the endianness
 		public ushort ReadWord(uint addr) {
+			if (endian == null) InitConvertVars();
+
 			if(endian.ToLower() == "'little'") {
 				return (ushort)((data[addr]) | ((data[addr + 1] << 8)));
 
@@ -197,11 +199,7 @@ namespace SMPS2ASMv2 {
 								if (rout[eid] == null) rout[eid] = entry;
 								break;
 
-							// if any of these appear in any LUT, there is some programming error! Hopefully this never happens tho =O
-							case ScriptItemType.Operation:case ScriptItemType.Condition:case ScriptItemType.Repeat:
-							case ScriptItemType.Goto:case ScriptItemType.Stop:case ScriptItemType.Executable:
-							case ScriptItemType.ArgMod:case ScriptItemType.LableMod:case ScriptItemType.LableDo:
-							case ScriptItemType.Comment:
+							default:
 								cvterror(entry, "Somehow optimized look-up-table contains unoptimizable elements! Report to developer.");
 								break;
 						}
@@ -358,15 +356,12 @@ namespace SMPS2ASMv2 {
 					stop = true;
 					return ret;
 
-				case ScriptItemType.Operation:case ScriptItemType.Condition:case ScriptItemType.Repeat:
-				case ScriptItemType.Goto:case ScriptItemType.Stop:case ScriptItemType.Executable:
-				case ScriptItemType.ArgMod:case ScriptItemType.LableMod:case ScriptItemType.LableDo:
-				case ScriptItemType.Comment:
-					cvterror(lut[d], "Somehow optimized look-up-table contains unoptimizable elements! Report to developer.");
-					break;
-
 				case ScriptItemType.NULL:
 					cvterror(lut[d], "Type of item is NULL! This is most likely a programming error in SMPS2ASM!");
+					break;
+
+				default:
+					cvterror(lut[d], "Somehow optimized look-up-table contains unoptimizable elements! Report to developer.");
 					break;
 			}
 
@@ -420,6 +415,24 @@ namespace SMPS2ASMv2 {
 
 						for (int nnn = ccc;nnn > 0;nnn--) {
 							ConvertRun((i as ScriptRepeat).Inner.Items, ref _null, out stop, out comment);
+						}
+						break;
+
+					case ScriptItemType.While:
+						string[] nu_ll = null;
+						bool c;
+
+						while(true) {
+							try {
+								c = Parse.ParseBool((i as ScriptWhile).cond, i.line, i.parent);
+
+							} catch (Exception) {
+								c = Parse.ParseDouble((i as ScriptWhile).cond, i.line, i.parent) == 0;
+							}
+
+							if (debug) Debug(pos + offset, i.line, i.identifier, "w " + c + " {");
+							if (!c) break;
+							ConvertRun((i as ScriptWhile).Inner.Items, ref nu_ll, out stop, out comment);
 						}
 						break;
 
