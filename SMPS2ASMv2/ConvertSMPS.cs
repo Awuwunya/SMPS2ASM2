@@ -279,7 +279,7 @@ namespace SMPS2ASMv2 {
 		// check if the string is in a valid location
 		private bool IsValidLocation(OffsetString o) {
 			if (o.offset == null) return false;
-			if (o.offset >= offset && o.offset < offset + data.Length) return true;
+			if (o.offset >= offset && o.offset <= offset + data.Length) return true;
 
 			// if invalid, put in a lable at the end
 			bool pp = o.offset > offset;
@@ -399,11 +399,11 @@ namespace SMPS2ASMv2 {
 						string[] null_ = null;
 
 						if (Parse.ParseBool(cond.condition, cond.line, cond.parent)) {
-							if (debug) Debug(pos + offset, i.line, i.identifier, "¤ " + cond.condition + " (true)");
+							if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (true)");
 							ConvertRun(cond.True.Items, ref null_, out stop, out comment);
 
 						} else {
-							if (debug) Debug(pos + offset, i.line, i.identifier, "¤ " + cond.condition + " (false)");
+							if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (false)");
 							ConvertRun(cond.False.Items, ref null_, out stop, out comment);
 						}
 						break;
@@ -411,7 +411,7 @@ namespace SMPS2ASMv2 {
 					case ScriptItemType.Repeat:
 						string[] _null = null;
 						int ccc = Parse.ParseInt((i as ScriptRepeat).count, i.line, i.parent);
-						if (debug) Debug(pos + offset, i.line, i.identifier, "* " + ccc + " {");
+						if (debug) Debug(pos + offset, i.line, i.identifier, "f " + ccc + " {");
 
 						for (int nnn = ccc;nnn > 0;nnn--) {
 							ConvertRun((i as ScriptRepeat).Inner.Items, ref _null, out stop, out comment);

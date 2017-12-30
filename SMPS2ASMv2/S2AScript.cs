@@ -82,9 +82,10 @@ namespace SMPS2ASMv2 {
 									if(debug) Debug(lnum, tabs++, "}{");
 
 								} else {
-									stack.Pop();
-									// pop from stack
+									// pop from co stack (NEEDS TO BE FIRST FUU)
 									if(co.Count > 0 && (co.Peek().True == stack.Peek() || co.Peek().False == stack.Peek())) co.Pop();
+
+									stack.Pop();
 									if (debug) Debug(lnum,tabs, "}");
 								}
 								break;
@@ -286,7 +287,7 @@ namespace SMPS2ASMv2 {
 								co.Push(new ScriptCondition(lnum, stack.Peek(), line.Substring(1, line.Length - 2).Trim(trim)));
 								stack.Peek().Add(co.Peek());
 								stack.Push(co.Peek().True);
-								if (debug) Debug(lnum, tabs++, "¤ " + line.Substring(1, line.Length - 2).Trim(trim) + " {");
+								if (debug) Debug(lnum, tabs++, "c " + line.Substring(1, line.Length - 2).Trim(trim) + " {");
 								break;
 
 							case 'f':
@@ -297,7 +298,7 @@ namespace SMPS2ASMv2 {
 								ScriptRepeat r = new ScriptRepeat(lnum, stack.Peek(), counter);
 								stack.Peek().Add(r);
 								stack.Push(r.Inner);
-								if (debug) Debug(lnum,tabs++, "* " + counter +" {");
+								if (debug) Debug(lnum,tabs++, "f " + counter +" {");
 								break;
 
 							case 'w':
@@ -364,7 +365,7 @@ namespace SMPS2ASMv2 {
 
 								// arg1 = type (char), arg2 = rest of the line
 								stack.Peek().Add(new ScriptGoto(lnum, stack.Peek(), ttype, line = line.Substring(2).Trim(trim)));
-								if (debug) Debug(lnum,tabs, '>' + ttype +' '+ line);
+								if (debug) Debug(lnum,tabs, ">" + ttype +" "+ line);
 								break;
 
 							case ';':
