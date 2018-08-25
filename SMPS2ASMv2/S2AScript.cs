@@ -9,6 +9,8 @@ namespace SMPS2ASMv2 {
 		public static S2AScript context;
 		// subscripts array
 		public Dictionary<string, ScriptArray> subscripts;
+		// equates array
+		public Dictionary<string, Equate> equates;
 		// array ID for script arrays, for some simpler management
 		public static uint arrayID = 0;
 
@@ -17,20 +19,30 @@ namespace SMPS2ASMv2 {
 			error("smps2asm.smpss:" + lnum + ": " + v);
 		}
 
+		public static Equate GetEquate(string name) {
+			if (!context.equates.ContainsKey(name))
+				context.equates.Add(name, new Equate());
+
+			return context.equates[name];
+		}
+
 		public S2AScript(string script, string[] args, string type) {
 			context = this;
 
 			Console.WriteLine("Parsing script...");
 			try {
-				ParseScript("=type '"+ type.ToLowerInvariant() +"'\n"+ File.ReadAllText(script).Replace("\t", "").Replace("\r", ""), args);
+				ParseScriptInit("=type '"+ type.ToLowerInvariant() +"'\n"+ File.ReadAllText(script).Replace("\t", "").Replace("\r", ""), args, -1);
 			} catch(Exception e) {
 				error(e.ToString());
 			}
 		}
 
-		private void ParseScript(string data, string[] args) {
+		// initialize script parsing
+		private void ParseScriptInit(string data, string[] args, int lnoffs) {
 			if (debug) Debug("--; Prepare script parse");
 			subscripts = new Dictionary<string, ScriptArray>();
+			equates = new Dictionary<string, Equate>();
+
 			// create stack to push and pop items from. Allow for simpler code
 			Stack<ScriptArray> stack = new Stack<ScriptArray>();
 			{
@@ -40,6 +52,10 @@ namespace SMPS2ASMv2 {
 				subscripts.Add("", f);
 			}
 
+			ParseScript(data, args, lnoffs, ref stack);
+		}
+
+		private void ParseScript(string data, string[] args, int lnoffs, ref Stack<ScriptArray> stack) {
 			// chars to trim from strings
 			char[] trim = new char[] { ' ', '\t' };
 
@@ -48,7 +64,7 @@ namespace SMPS2ASMv2 {
 			if (debug) Debug(new string('-', 80));
 
 			// use line num to accurately report issues
-			uint lnum = 0, tabs = 0;
+			uint lnum = (uint)lnoffs, tabs = 0;
 			foreach (string ln in data.Replace("\r", "").Split('\n')) {
 				lnum++;
 
@@ -176,7 +192,11 @@ namespace SMPS2ASMv2 {
 
 								ScriptEquate scre = new ScriptEquate(lnum, stack.Peek(), equ, val);
 								stack.Peek().Add(scre);
-								if (debug) Debug(lnum,tabs, '=' + equ + ' '+ val + (scre.calculated ? " "+ scre.value : ""));
+								if (debug) {
+									string n = scre.GetName();
+									Equate e = GetEquate(n);
+									Debug(lnum, tabs, '=' + n + ' ' + val + (e.calculated ? " " + e.value : ""));
+								}
 								break;
 
 							case '!':
@@ -313,19 +333,61 @@ namespace SMPS2ASMv2 {
 								break;
 
 							case ':':
-								// check for { at the end of line
-								int inxd = line.IndexOf('{');
-								if (inxd == -1 || !line.EndsWith("{")) screrr(lnum, "Expected block start ('{') at end of line, but found none.");
-								string num = line.Substring(1, inxd - 1).Trim(trim);
+								if(line.Length < 3) screrr(lnum, "Unexpected end of line!");
 
-								try {
-									ScriptArgMod m = new ScriptArgMod(lnum, stack.Peek(), num);
-									stack.Peek().Add(m);
-									stack.Push(m.Inner);
-									if (debug) Debug(lnum,tabs++, ": " + m.num + " {");
+								switch (line[1]) {
+									case '?': {
+											// check for { at the end of line
+											int inxd = line.IndexOf('{');
+											if (inxd == -1) screrr(lnum, "Expected block start ('{') at end of line, but found none.");
+											string num = line.Substring(2, inxd - 2).Trim(trim);
 
-								} catch(Exception) {
-									screrr(lnum, "Failed to parse '"+ num +"'!");
+											try {
+												ScriptArgMod m = new ScriptArgMod(lnum, stack.Peek(), num);
+												stack.Peek().Add(m);
+												stack.Push(m.Inner);
+												if (debug) Debug(lnum, tabs++, ":? " + m.num + " {");
+
+											} catch (Exception) {
+												screrr(lnum, "Failed to parse '" + num + "'!");
+											}
+										}
+										break;
+
+									case '-': {
+											string num = line.Substring(2, line.Length - 2).Trim(trim);
+
+											try {
+												ScriptArgRmv m = new ScriptArgRmv(lnum, stack.Peek(), num);
+												stack.Peek().Add(m);
+												if (debug) Debug(lnum, tabs++, ":- " + m.num);
+
+											} catch (Exception) {
+												screrr(lnum, "Failed to parse '" + num + "'!");
+											}
+										}
+										break;
+
+									case '=': {
+											int inxd = line.IndexOf(' ');
+											if (inxd == -1) screrr(lnum, "Expected space separator (' ') in the middle of the line, but found none.");
+											string num = line.Substring(2, inxd - 2).Trim(trim);
+											string oper = line.Substring(inxd, line.Length - inxd).Trim(trim);
+
+											try {
+												ScriptArgEqu m = new ScriptArgEqu(lnum, stack.Peek(), num, oper);
+												stack.Peek().Add(m);
+												if (debug) Debug(lnum, tabs++, ":= " + m.num +" "+ m.operation);
+
+											} catch (Exception) {
+												screrr(lnum, "Failed to parse '" + num + "'!");
+											}
+										}
+										break;
+
+									default:
+										screrr(lnum, "Unrecognized argument modifier type '"+ line[1] + "'!");
+										break;
 								}
 								break;
 
@@ -383,6 +445,38 @@ namespace SMPS2ASMv2 {
 								if (debug) Debug(lnum, tabs, line);
 								break;
 
+							case 's': {
+									int idx = line.IndexOf(' ');
+									string mac = line.Substring(1, idx >= 0 ? idx - 1 : line.Length - 1);
+
+									switch (mac.ToLowerInvariant()) {
+										case "inc":
+											if(idx == -1) screrr(lnum, "Macro does not have a file name!");
+											string path = line.Substring(idx + 1, line.Length - idx - 1);
+
+											if (path.StartsWith("\"") && path.EndsWith("\""))
+												path = path.Substring(1, path.Length - 2);
+
+											if(!File.Exists(path)) screrr(lnum, "File '"+ path +"' does not exist!");
+
+											try {
+												string[] file = File.ReadAllLines(path);
+												if (debug) Debug(lnum, tabs, "--; macro: parse another file '"+ path +"' ("+ file.Length +" lines)");
+												ParseScript(string.Join("\n", file), args, 0, ref stack);
+												if (debug) Debug(lnum, tabs, "--; return to previous file");
+
+											} catch(Exception ex) {
+												screrr(lnum, "Failed to load file contents for file '"+ path +"'!");
+											}
+											break;
+
+										default:
+											screrr(lnum, "Macro type '" + mac + "' not recognized!");
+											break;
+									}
+								}
+								break;
+
 							default:
 								// incase we cant figure out what command this is
 								screrr(lnum, "Symbol not recognized: '" + line.ElementAt(0) + "'");
@@ -405,5 +499,12 @@ namespace SMPS2ASMv2 {
 
 			return null;
 		}
+	}
+
+	public class Equate {
+		public string val;
+		public double value;
+		// if calculated = true, use double, else use string
+		public bool calculated;
 	}
 }

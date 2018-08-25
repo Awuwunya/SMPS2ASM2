@@ -30,7 +30,7 @@ namespace SMPS2ASMv2 {
 		}
 		
 		private void AddLine(uint pos, uint len, ScriptEquate s) {
-			AddLine(pos++, 1, "\b " + s.equ);
+			AddLine(pos++, 1, "\b " + s.GetName());
 		}
 
 		private void AddLine(uint pos, uint len, byte val) {
@@ -96,10 +96,10 @@ namespace SMPS2ASMv2 {
 		public ushort ReadWord(uint addr) {
 			if (endian == null) InitConvertVars();
 
-			if(endian.ToLower() == "'little'") {
+			if(endian.ToLower() == "little") {
 				return (ushort)((data[addr]) | ((data[addr + 1] << 8)));
 
-			} else if(endian.ToLower() == "'big'") {
+			} else if(endian.ToLower() == "big") {
 				return (ushort)((data[addr + 1]) | ((data[addr] << 8)));
 
 			} else error("Endian '"+ endian +"' is not recognized!");
@@ -154,12 +154,12 @@ namespace SMPS2ASMv2 {
 			try {
 				// get global subscript
 				ScriptArray b = scr.subscripts[""];
-				endian = b.GetEquate("endian").val;
-				offset = Parse.BasicUint(b.GetEquate("offset").val);
+				endian = S2AScript.GetEquate("endian").val;
+				offset = Parse.BasicUint(S2AScript.GetEquate("offset").val);
 				if (debug) Debug("--> InitConvertVars: endian="+ endian +" offset="+ toHexString(offset, 4));
 
 			} catch (Exception e) {
-				cvterror(null, e.ToString());
+				cvterror(null, new Exception("Missing equates when getting convert variables! Required equates are: 'endian' and 'offset'.", e).ToString());
 			}
 		}
 
@@ -284,7 +284,8 @@ namespace SMPS2ASMv2 {
 			// if invalid, put in a lable at the end
 			bool pp = o.offset > offset;
 			long offs = (pp ? (uint)o.offset - offset - data.Length : offset - (uint)o.offset);
-			AddLine((uint)data.Length, 0, "\t; " + o.line + " at " + toHexString((uint)o.offset, 4) + " (" + toHexString(offs, 1) + ' ' + (pp ? "after end of" : "before start of") + " file) can not be converted, because the data does not exist.");
+			AddLine((uint)data.Length, 0, "\t; " + o.line + " at " + toHexString((uint)o.offset, 4) + " (" + toHexString(offs, 1) + ' ' + (pp ? "after end of" : "before start of") + 
+				" file) can not be converted, because the data does not exist.");
 			if(debug) Debug("--. Unaccessible lable found at " + toHexString((uint)o.offset, 4));
 			return false;
 		}
@@ -315,8 +316,6 @@ namespace SMPS2ASMv2 {
 				ProcessItem(i, ref args, out stop, out comment);
 				if (stop) break;
 			}
-			
-			return;
 		}
 
 		private bool ProcessItem(GenericScriptItem[] lut, bool str, out bool stop, out string text) {
@@ -331,8 +330,8 @@ namespace SMPS2ASMv2 {
 			switch (lut[d].type) {
 				case ScriptItemType.Equate:
 					// just write equate
-					if (debug) Debug(pos + offset, lut[d].line, str, (lut[d] as ScriptEquate).equ +" "+ toHexString(d, 2));
-					if (str) text = (lut[d] as ScriptEquate).equ;
+					if (debug) Debug(pos + offset, lut[d].line, str, (lut[d] as ScriptEquate).GetName() +" "+ toHexString(d, 2));
+					if (str) text = (lut[d] as ScriptEquate).GetName();
 					else AddLine(pos, 1, lut[d] as ScriptEquate);
 					SkipByte(pos++);
 					return true;
@@ -382,7 +381,7 @@ namespace SMPS2ASMv2 {
 
 					case ScriptItemType.Equate:
 						(i as ScriptEquate).Evaluate();
-						if (debug) Debug(pos + offset, i.line, i.identifier, '='+ (i as ScriptEquate).equ +' '+ (i as ScriptEquate).val +' '+ (i as ScriptEquate).value);
+						if (debug) Debug(pos + offset, i.line, i.identifier, '='+ (i as ScriptEquate).GetName() + ' '+ (i as ScriptEquate).val +' '+ (i as ScriptEquate).GetValue());
 						break;
 
 					case ScriptItemType.Macro:
@@ -390,55 +389,62 @@ namespace SMPS2ASMv2 {
 						break;
 
 					case ScriptItemType.Operation:
-						string rsop = Parse.ParseNumber((i as ScriptOperation).operation, null, i.parent);
+						string rsop = Parse.ParseNumber((i as ScriptOperation).operation, null);
 						if (debug) Debug(pos + offset, i.line, i.identifier, '$' + (i as ScriptOperation).operation + ' ' + rsop);
 						break;
 
-					case ScriptItemType.Condition:
-						ScriptCondition cond = i as ScriptCondition;
-						string[] null_ = null;
+					case ScriptItemType.Condition: {
+							ScriptCondition cond = i as ScriptCondition;
+							bool c;
 
-						if (Parse.ParseBool(cond.condition, cond.line, cond.parent)) {
-							if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (true)");
-							ConvertRun(cond.True.Items, ref null_, out stop, out comment);
+							try {
+								c = Parse.ParseBool(cond.condition, cond.line);
 
-						} else {
-							if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (false)");
-							ConvertRun(cond.False.Items, ref null_, out stop, out comment);
+							} catch (Exception) {
+								c = Parse.ParseDouble(cond.condition, cond.line) != 0;
+							}
+
+							if (c) {
+								if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (true)");
+								ConvertRun(cond.True.Items, ref args, out stop, out comment);
+
+							} else {
+								if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (false)");
+								ConvertRun(cond.False.Items, ref args, out stop, out comment);
+							}
 						}
 						break;
 
 					case ScriptItemType.Repeat:
-						string[] _null = null;
-						int ccc = Parse.ParseInt((i as ScriptRepeat).count, i.line, i.parent);
+						int ccc = Parse.ParseInt((i as ScriptRepeat).count, i.line);
 						if (debug) Debug(pos + offset, i.line, i.identifier, "f " + ccc + " {");
 
 						for (int nnn = ccc;nnn > 0;nnn--) {
-							ConvertRun((i as ScriptRepeat).Inner.Items, ref _null, out stop, out comment);
+							ConvertRun((i as ScriptRepeat).Inner.Items, ref args, out stop, out comment);
 						}
 						break;
 
-					case ScriptItemType.While:
-						string[] nu_ll = null;
-						bool c;
+					case ScriptItemType.While: {
+							bool c;
 
-						while(true) {
-							try {
-								c = Parse.ParseBool((i as ScriptWhile).cond, i.line, i.parent);
+							while (true) {
+								try {
+									c = Parse.ParseBool((i as ScriptWhile).cond, i.line);
 
-							} catch (Exception) {
-								c = Parse.ParseDouble((i as ScriptWhile).cond, i.line, i.parent) == 0;
+								} catch (Exception) {
+									c = Parse.ParseDouble((i as ScriptWhile).cond, i.line) != 0;
+								}
+
+								if (debug) Debug(pos + offset, i.line, i.identifier, "w " + c + " {");
+								if (!c) break;
+								ConvertRun((i as ScriptWhile).Inner.Items, ref args, out stop, out comment);
 							}
-
-							if (debug) Debug(pos + offset, i.line, i.identifier, "w " + c + " {");
-							if (!c) break;
-							ConvertRun((i as ScriptWhile).Inner.Items, ref nu_ll, out stop, out comment);
 						}
 						break;
 
 					case ScriptItemType.Goto:
 						ScriptGoto gotto = i as ScriptGoto;
-						uint off = Parse.ParseUint(gotto.offset, i.line, i.parent);
+						uint off = Parse.ParseUint(gotto.offset, i.line);
 
 						switch (gotto.func) {
 							case 'a':case 'A':
@@ -498,54 +504,103 @@ namespace SMPS2ASMv2 {
 						ConvertRun(scr.GetSubscript((i as ScriptImport).name).Items, ref args, out stop, out comment);
 						break;
 
-					case ScriptItemType.ArgMod:
-						// store all kinds of variables and properly fix pos
-						ScriptArgMod am = i as ScriptArgMod;
-						byte[] dat = data;
-						uint pos3 = pos;
-						bool fol = followlables;
-						pos -= (uint)((args.Length - 1) - am.num);
-						data = new byte[]{ Parse.BasicByte(args[am.num]) };
+					case ScriptItemType.ArgMod: {
+							ScriptArgMod am = i as ScriptArgMod;
+							// check if this request is valid
+							if (args == null) cvterror(i, "No macro parameters were passed in to modify!");
+							if (args.Length <= am.num)
+								cvterror(i, "Not enough macro parameters were passed in for lable mod at line " + i.line + "! Requested parameter num was " + am.num + ", but only " + args.Length + " arguments were passed in!");
 
-						if (debug) Debug(pos + offset, i.line, i.identifier, ":" + am.num + ' ' + toHexString(data[0], 2) +' '+ toHexString(pos, 4));
-						if (am.Inner.Optimized == null) am.Inner.Optimize();
-						Convert("", am.Inner.Optimized, null, true, out args[am.num]);
-						followlables = fol;
-						pos = pos3;
-						data = dat;
+							// store all kinds of variables and properly fix pos
+							byte[] dat = data;
+							uint pos3 = pos;
+							bool fol = followlables;
+							pos -= (uint)((args.Length - 1) - am.num);
+							data = new byte[] { Parse.BasicByte(args[am.num]) };
+
+							// debug and optimize array
+							if (debug) Debug(pos + offset, i.line, i.identifier, ":?" + am.num + ' ' + toHexString(data[0], 2) + ' ' + toHexString(pos, 4));
+							if (am.Inner.Optimized == null) am.Inner.Optimize();
+
+							// process request
+							Convert("", am.Inner.Optimized, null, true, out args[am.num]);
+							followlables = fol;
+							pos = pos3;
+							data = dat;
+							Parse.args = args;
+						}
 						break;
 
-					case ScriptItemType.LableMod:
-						LableMod lmod = i as LableMod;
-						// check if this request is valid
-						if (args == null)
-							cvterror(i, "No macro parameters were passed in to modify!");
-						if (args.Length <= lmod.num)
-							cvterror(i, "Not enough macro parameters were passed in for lable mod at line "+ i.line +"! Requested parameter num was "+ lmod.num +", but only "+ args.Length +" arguments were passed in!");
+					case ScriptItemType.ArgRmv: {
+							ScriptArgRmv am = i as ScriptArgRmv;
+							// check if this request is valid
+							if (args == null) cvterror(i, "No macro parameters were passed in to modify!");
+							if (args.Length <= am.num)
+								cvterror(i, "Not enough macro parameters were passed in for lable mod at line " + i.line + "! Requested parameter num was " + am.num + ", but only " + args.Length + " arguments were passed in!");
 
-						uint n = 0;
-						try {
-							n = Parse.BasicUint(args[lmod.num]);
+							// construct a new array and remove entry from it
+							string[] a = args;
+							args = new string[a.Length - 1];
 
-						} catch (Exception) {
-							cvterror(i, "Failed to convert argument to number at line " + i.line + "! Argument '"+ args[lmod.num] +"' is not a valid number!");
+							for (int i1 = 0, i2 = 0;i1 < a.Length;i1++, i2++)
+								if (i1 == am.num) i2--;
+								else args[i2] = a[i1];
+
+							// debug and update args
+							if (debug) Debug(pos + offset, i.line, i.identifier, ":-" + am.num + ' ' + a[am.num]);
+							Parse.args = args;
 						}
+						break;
 
-						if(!ObtainValidLable(Parse.GetAllOperators(lmod.lable, i.parent), n, out args[lmod.num], out OffsetString lab))
-							cvterror(i, "Failed to fetch a valid lable with format '"+ Parse.ParseNumber(lmod.lable.Replace("£", baselable), i.line, i.parent) + "' at line "+ i.line +": Lable already taken.");
+					case ScriptItemType.ArgEqu: {
+							ScriptArgEqu am = i as ScriptArgEqu;
+							// check if this request is valid
+							if (args == null) cvterror(i, "No macro parameters were passed in to modify!");
+							if (args.Length <= am.num)
+								cvterror(i, "Not enough macro parameters were passed in for lable mod at line " + i.line + "! Requested parameter num was " + am.num + ", but only " + args.Length + " arguments were passed in!");
 
-						if (debug) Debug(pos + offset, i.line, i.identifier, '~' + args[lmod.num] +" :"+ lmod.num + ' ' + (lab != null ? toHexString((uint)lab.offset, 4) : "NULL"));
+							string res = Parse.ParseMultiple(am.operation, am.line);
+							args[am.num] = res;
 
-						if (followlables && lab != null && (uint)lab.offset - offset < skipped.Length && !skipped[(uint)lab.offset - offset]) {
-							uint pos2 = pos;
-							Convert(lab, StoredLUT, StoredRun, false, out string fuck);
-							pos = pos2;
+							// debug and update args
+							if (debug) Debug(pos + offset, i.line, i.identifier, ":=" + am.num + ' ' + res);
+							Parse.args = args;
+						}
+						break;
+
+					case ScriptItemType.LableMod: {
+							LableMod lmod = i as LableMod;
+							// check if this request is valid
+							if (args == null) cvterror(i, "No macro parameters were passed in to modify!");
+							if (args.Length <= lmod.num)
+								cvterror(i, "Not enough macro parameters were passed in for lable mod at line " + i.line + "! Requested parameter num was " + lmod.num + ", but only " + args.Length + " arguments were passed in!");
+							
+							uint n = 0;
+							try {
+								n = Parse.BasicUint(args[lmod.num]);
+
+							} catch (Exception) {
+								cvterror(i, "Failed to convert argument to number at line " + i.line + "! Argument '" + args[lmod.num] + "' is not a valid number!");
+							}
+
+							if (!ObtainValidLable(Parse.GetAllOperators(lmod.lable), n, out args[lmod.num], out OffsetString lab))
+								cvterror(i, "Failed to fetch a valid lable with format '" + Parse.ParseNumber(lmod.lable.Replace("£", baselable), i.line) + "' at line " + i.line + ": Lable already taken.");
+
+							if (debug) Debug(pos + offset, i.line, i.identifier, '~' + args[lmod.num] + " :" + lmod.num + ' ' + (lab != null ? toHexString((uint)lab.offset, 4) : "NULL"));
+
+							if (followlables && lab != null && (uint)lab.offset - offset < skipped.Length && !skipped[(uint)lab.offset - offset]) {
+								uint pos2 = pos;
+								Convert(lab, StoredLUT, StoredRun, false, out string fuck);
+								pos = pos2;
+							}
+
+							Parse.args = args;
 						}
 						break;
 
 					case ScriptItemType.LableDo:
 						LableCreate lcr = i as LableCreate;
-						if(!ObtainValidLable(lcr.lable, Parse.ParseUint(lcr.oper, i.line, i.parent), out string shite, out OffsetString crapp))
+						if(!ObtainValidLable(lcr.lable, Parse.ParseUint(lcr.oper, i.line), out string shite, out OffsetString crapp))
 							cvterror(i, "Failed to create lable '"+ lcr.lable +"' with operation '"+ lcr.oper +"'!");
 						if (debug) Debug(pos + offset, i.line, i.identifier, '~' + shite + ' ' + lcr.oper + ' ' + toHexString((uint)crapp.offset, 4));
 						break;
@@ -556,11 +611,7 @@ namespace SMPS2ASMv2 {
 							uint pos2 = pos;
 
 							// translate all the conversion things
-							while (comm.Contains("{") && comm.Contains("}")) {
-								int i1 = comm.IndexOf('{'), i2 = comm.IndexOf('}');
-								string arg = Parse.ParseNumber(comm.Substring(i1 + 1, i2 - i1 - 1), i.line, i.parent);
-								comm = comm.Substring(0, i1) + arg + comm.Substring(i2 + 1);
-							}
+							comm = Parse.ParseMultiple(comm, i.line);
 
 							if (debug) Debug(pos + offset, i.line, i.identifier, '%' + comm);
 							comm = comm.Replace("\\t", "\t").Replace("\\r", "\r").Replace("\\n", "\n");
@@ -576,11 +627,7 @@ namespace SMPS2ASMv2 {
 							uint pos2 = pos;
 
 							// translate all the conversion things
-							while (comm.Contains("{") && comm.Contains("}")) {
-								int i1 = comm.IndexOf('{'), i2 = comm.IndexOf('}');
-								string arg = Parse.ParseNumber(comm.Substring(i1 + 1, i2 - i1 - 1), i.line, i.parent);
-								comm = comm.Substring(0, i1) + arg + comm.Substring(i2 + 1);
-							}
+							comm = Parse.ParseMultiple(comm, i.line);
 
 							if (debug) Debug(pos + offset, i.line, i.identifier, '+' + comm);
 							comm = comm.Replace("\\t", "\t").Replace("\\r", "\r").Replace("\\n", "\n");
@@ -641,7 +688,7 @@ namespace SMPS2ASMv2 {
 			// parse all arguments
 			int i = 0;
 			foreach(string s in ma.arg) {
-				args[i] = Parse.ParseNumber(ma.arg[i], ma.line, ma.Inner);
+				args[i] = Parse.ParseNumber(ma.arg[i], ma.line);
 				// try to convert args to hex
 				try {
 					args[i] = toHexString(Parse.BasicInt(args[i]), 2);
@@ -651,6 +698,7 @@ namespace SMPS2ASMv2 {
 			}
 
 			// write debug info again
+			Parse.args = args;
 			if (debug) Debug(pos2 + offset, ma.line, ma.identifier, db.Substring(0, db.Length - 2));
 
 			// run inner shite
@@ -660,6 +708,9 @@ namespace SMPS2ASMv2 {
 			if (comment != null)
 				AddLine(p - (uint)ma.pre.Length, (uint)ma.pre.Length + (pos - p), new string[] { ma.name, String.Join(", ", args), comment });
 			else AddLine(p - (uint)ma.pre.Length, (uint)ma.pre.Length + (pos - p), new string[] { ma.name, String.Join(", ", args) });
+
+			// remove arguments!
+			Parse.args = new string[0];
 		}
 	}
 }

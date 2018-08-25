@@ -20,65 +20,62 @@ namespace SMPS2ASMv2 {
 	public enum ScriptItemType {
 		NULL = 0, Equate, Macro, Operation,
 		Condition, Repeat, While, Goto, Stop,
-		Executable, Import, ArgMod,
+		Executable, Import, ArgMod, ArgRmv, ArgEqu,
 		LableMod, LableDo, Comment, Print,
 		ArrayItem, // SPECIAL
 	}
 
 	public class ScriptEquate : GenericScriptItem {
 		public string equ, val;
-		public double value;
-		public bool calculated;
 
 		public ScriptEquate(uint lnum, ScriptArray parent, string equ, string val) : base(lnum, parent, "EQU", ScriptItemType.Equate) {
 			this.equ = equ;
 			this.val = val;
+		}
 
-			if(val.Contains("\\") || val.Contains(".") || val.Contains("'")) calculated = false;
-			else {
-				value = Parse.ParseDouble(val, lnum, null);
-				calculated = !Double.IsNaN(value);
+		public string GetName() {
+			if (equ.Contains("{")) {
+				// if contains {, it uses dynamic names
+				return Parse.ParseMultiple(equ, line);
 			}
+
+			return equ;
 		}
 
 		public bool Evaluate() {
-			return Evaluate(parent);
+			return Evaluate(GetName());
 		}
 
-		public bool Evaluate(ScriptArray scra) {
-			// if string or calculated, return
-			if (val.Contains("'")) return false;
-			if (calculated) return true;
-
+		public bool Evaluate(string name) {
 			// evaluate equate
-			value = Parse.ParseDouble(val, line, scra);
+			string v = Parse.ParseNumber(val, line);
+			Equate e = GetEquate(GetName());
+			e.val = v;
 
-			// check if there exists equate with the same name
-			ScriptEquate e = scra.GetEquate(equ);
-			if (Double.IsNaN(value)) return false;
-
-			if (e == null) {
-				// if return calculated value
-				return true;
+			if (Double.TryParse(v, out double vv)) {
+				e.value = vv;
+				return e.calculated = true;
 
 			} else {
-				// else, save the new value to the equate and return
-				e.value = value;
-				return true;
+				return e.calculated = false;
 			}
 		}
 
 		// used for returning value correctly. Tries to avoid returning unusable crap. But it still can.
 		public string GetValue() {
-			if (val.Contains("'")) return val;
-			else if(calculated || val.Contains("\\") || val.Contains(".")) return value + "";
+			Equate e = GetEquate(GetName());
 
-			if (Evaluate(parent)) {
-				return value + "";
+			if (e.calculated) return "" + e.value;
+			return e.val;
+		}
 
-			} else {
-				return val;
-			}
+		// hopefully very quickly check if value is evaluated and evaluate if not
+		public bool CheckEvaluate() {
+			string n = GetName();
+			Equate e = GetEquate(n);
+
+			if (e.calculated) return true;
+			return Evaluate(n);
 		}
 	}
 
@@ -191,7 +188,7 @@ namespace SMPS2ASMv2 {
 		public string cond;
 		public ScriptArray Inner;
 
-		public ScriptWhile(uint lnum, ScriptArray parent, string cond) : base(lnum, parent, "WHI", ScriptItemType.While) {
+		public ScriptWhile(uint lnum, ScriptArray parent, string cond) : base(lnum, parent, "WHL", ScriptItemType.While) {
 			this.cond = cond;
 			Inner = new ScriptArray(parent);
 		}
@@ -201,9 +198,27 @@ namespace SMPS2ASMv2 {
 		public int num;
 		public ScriptArray Inner;
 
-		public ScriptArgMod(uint lnum, ScriptArray parent, string count) : base(lnum, parent, "ARG", ScriptItemType.ArgMod) {
+		public ScriptArgMod(uint lnum, ScriptArray parent, string count) : base(lnum, parent, "AGM", ScriptItemType.ArgMod) {
 			num = Parse.BasicInt(count);
 			Inner = new ScriptArray(parent);
+		}
+	}
+
+	public class ScriptArgRmv : GenericScriptItem {
+		public int num;
+
+		public ScriptArgRmv(uint lnum, ScriptArray parent, string count) : base(lnum, parent, "AGR", ScriptItemType.ArgRmv) {
+			num = Parse.BasicInt(count);
+		}
+	}
+
+	public class ScriptArgEqu : GenericScriptItem {
+		public int num;
+		public string operation;
+
+		public ScriptArgEqu(uint lnum, ScriptArray parent, string count, string oper) : base(lnum, parent, "AGE", ScriptItemType.ArgEqu) {
+			num = Parse.BasicInt(count);
+			operation = oper;
 		}
 	}
 
@@ -248,7 +263,7 @@ namespace SMPS2ASMv2 {
 	public class LableCreate : GenericScriptItem {
 		public string lable, oper;
 
-		public LableCreate(uint lnum, ScriptArray parent, string lable, string oper) : base(lnum, parent, "LAD", ScriptItemType.LableDo) {
+		public LableCreate(uint lnum, ScriptArray parent, string lable, string oper) : base(lnum, parent, "LAC", ScriptItemType.LableDo) {
 			this.lable = lable;
 			this.oper = oper;
 		}
@@ -285,10 +300,10 @@ namespace SMPS2ASMv2 {
 					case ScriptItemType.Equate:
 						ScriptEquate eq = (entry as ScriptEquate);
 						// only pre-calculated equates are possible to be used
-						if (!eq.calculated) S2AScript.screrr(entry.line, "Equates that are being optimized into a look-up-table must be possible to be pre-calculated! Equate with contents '" + eq.val + "' failed to be pre-calculated.");
+						if (!eq.CheckEvaluate()) S2AScript.screrr(entry.line, "Equates that are being optimized into a look-up-table must be possible to be pre-calculated! Equate with contents '" + eq.val + "' failed to be pre-calculated.");
 						// get offset
 						int v;
-						if (!Parse.DoubleToInt(eq.value, out v))
+						if (!Parse.DoubleToInt(GetEquate(eq.equ).value, out v))
 							screrr(entry.line, "Equate value can not be accurately converted from double floating point to int! Equate with contents '" + eq.val + "' failed to be conveted to 32-bit signed integer.");
 
 						// save entry or throw error.
@@ -346,22 +361,6 @@ namespace SMPS2ASMv2 {
 				}
 			}
 			return Optimized;
-		}
-
-		public ScriptEquate GetEquate(string name) {
-			// check parent first!!!
-			if (parent != null) {
-				ScriptEquate e = parent.GetEquate(name);
-				if (e != null) return e;
-			}
-
-			// try to find appropriate equate
-			foreach (GenericScriptItem s in Items) {
-				if (s is ScriptEquate e && e.equ == name)
-					return e;
-			}
-
-			return null;
 		}
 	}
 

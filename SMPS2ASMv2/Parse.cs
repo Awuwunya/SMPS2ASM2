@@ -5,6 +5,9 @@ using static SMPS2ASMv2.Program;
 
 namespace SMPS2ASMv2 {
 	public class Parse {
+		public static string[] args = new string[0];
+		public static Random random = new Random();
+
 		// basic string to int converter. Faster than ParseNumber
 		public static int BasicInt(string count) {
 			int bass = 10;
@@ -78,18 +81,18 @@ namespace SMPS2ASMv2 {
 			return (Math.Abs(value % 1) <= (Double.Epsilon * 100));
 		}
 
-		public static double ParseDouble(string val, uint? lnum, ScriptArray scra) {
+		public static double ParseDouble(string val, uint? lnum) {
 			try {
-				return Double.Parse(ParseNumber(val, lnum, scra));
+				return Double.Parse(ParseNumber(val, lnum));
 
 			} catch (Exception) {
 				return Double.NaN;
 			}
 		}
 
-		public static int ParseInt(string val, uint? lnum, ScriptArray scra) {
+		public static int ParseInt(string val, uint? lnum) {
 			try {
-				return Int32.Parse(val = ParseNumber(val, lnum, scra));
+				return Int32.Parse(val = ParseNumber(val, lnum));
 
 			} catch (Exception) {
 				Console.WriteLine("WARNING: Possibly dangerous casting from double to int! Value of '" + val + "' is not an integer.");
@@ -98,15 +101,25 @@ namespace SMPS2ASMv2 {
 			}
 		}
 
-		public static uint ParseUint(string val, uint? lnum, ScriptArray scra) {
-			return UInt32.Parse(ParseNumber(val, lnum, scra));
+		public static uint ParseUint(string val, uint? lnum) {
+			return UInt32.Parse(ParseNumber(val, lnum));
 		}
 
-		public static bool ParseBool(string val, uint? lnum, ScriptArray scra) {
-			return Boolean.Parse(ParseNumber(val, lnum, scra));
+		public static bool ParseBool(string val, uint? lnum) {
+			return Boolean.Parse(ParseNumber(val, lnum));
 		}
 
-		public static string ParseNumber(string s, uint? lnum, ScriptArray scra) {
+		internal static string ParseMultiple(string val, uint? lnum) {
+			while (val.Contains("{") && val.Contains("}")) {
+				int i1 = val.IndexOf('{'), i2 = val.IndexOf('}');
+				string arg = ParseNumber(val.Substring(i1 + 1, i2 - i1 - 1), lnum);
+				val = val.Substring(0, i1) + arg + val.Substring(i2 + 1);
+			}
+
+			return val;
+		}
+
+		public static string ParseNumber(string s, uint? lnun) {
 			try {
 				char type = '\0';
 				int len = 0;
@@ -125,7 +138,7 @@ namespace SMPS2ASMv2 {
 				}
 
 				// translate all abstract symbols
-				s = GetAllOperators(s, scra);
+				s = GetAllOperators(s);
 
 				// replace any hex constant with decimal
 				while (s.Contains("0x")) {
@@ -164,6 +177,7 @@ namespace SMPS2ASMv2 {
 				}
 
 			} catch (Exception e) {
+				if (debug) Debug("--! ERROR: " + e.ToString());
 			//	Console.WriteLine("'"+ s +"' "+ e);
 				return "";
 			}
@@ -184,11 +198,13 @@ namespace SMPS2ASMv2 {
 		}
 
 		// this code is basically taken from the earlier version of smps2asm
-		public static string GetAllOperators(string s, ScriptArray scra) {
+		public static string GetAllOperators(string s) {
 			try {
 				// translate all operators
 				while (s.Contains(".")) {
 					int i = s.IndexOf(".") + 1;
+					if (s.Length < i + 2) break;
+
 					string tr = GetOperator(s.Substring(i, 2));
 					s = s.Substring(0, i - 1) + tr + s.Substring(i + 2, s.Length - i - 2);
 				}
@@ -196,30 +212,36 @@ namespace SMPS2ASMv2 {
 				// translate all equates
 				while (s.Contains("\\")) {
 					// get equate
-					int i = s.IndexOf("\\") + 1, o = s.IndexOf("\\", i);
-					if (scra != null) {
-						ScriptEquate tr = scra.GetEquate(s.Substring(i, o - i));
+					int i = s.IndexOf("\\") + 1, o = s.IndexOf("\\", i), x = s.IndexOf('{', i);
+					if (x >= 0 && x < o) {
+						if (!s.Contains("}")) throw new Exception("Sequence contains an illegal equate! Can not translate.");
 
-						// if does not exist, error
-						if (tr == null) error("Could not find equate '" + s.Substring(i, o - i) + "'");
+						while (s.IndexOf('}', i) > o && o >= 0) o = s.IndexOf("\\", o + 1);
+						if (o < 0) throw new Exception("Sequence contains an illegal equate! Can not translate.");
+					}
 
-						// get the proper value of the equate
-						s = s.Substring(0, i - 1) + tr.GetValue() + s.Substring(o + 1, s.Length - o - 1);
-					} else
-						// we fucked it up, put in null
-						s = s.Substring(0, i - 1) +  "null" + s.Substring(o + 1, s.Length - o - 1);
+					// get equate name and transform it if needed
+					string eq = s.Substring(i, o - i);
+					if (eq.Contains("{")) eq = ParseMultiple(eq, null);
+					Equate tr = S2AScript.GetEquate(eq);
+
+					// if does not exist, error
+					if (tr == null) error("Could not find equate '" + eq + "'");
+
+					// get the proper value of the equate
+					s = s.Substring(0, i - 1) + (tr.calculated ? "" + tr.value : tr.val) + s.Substring(o + 1, s.Length - o - 1);
 				}
 
 				return s;
 
 			} catch (Exception e) {
-				error("Could not convert '" + s + "': "+ e.ToString());
+				error("Could not convert " + s + ": "+ e.ToString());
 				return null;
 			}
 		}
 
 		private static string GetOperator(string s) {
-			switch (s) {
+			switch (s.ToLowerInvariant()) {
 				case "db":
 					ConvertSMPS.context.SkipByte(ConvertSMPS.context.pos);
 					return "" + ConvertSMPS.context.data[ConvertSMPS.context.pos++];
@@ -328,10 +350,50 @@ namespace SMPS2ASMv2 {
 
 				case "ms":
 					return "" + timer.ElapsedMilliseconds;
+
+				case "cc":
+					return ""+ Console.Read();
+
+				case "ci":
+					if (long.TryParse(Console.ReadLine(), out long r)) return "" + r;
+					return "";
+
+				case "ri":
+					return "" + (random.Next() & 0xFFFF);
+
+				case "rf":
+					return "" + random.NextDouble();
+
+				case "a0": return GetArg(0);
+				case "a1": return GetArg(1);
+				case "a2": return GetArg(2);
+				case "a3": return GetArg(3);
+				case "a4": return GetArg(4);
+				case "a5": return GetArg(5);
+				case "a6": return GetArg(6);
+				case "a7": return GetArg(7);
+
+				case "n0": return GetArgN(0);
+				case "n1": return GetArgN(1);
+				case "n2": return GetArgN(2);
+				case "n3": return GetArgN(3);
+				case "n4": return GetArgN(4);
+				case "n5": return GetArgN(5);
+				case "n6": return GetArgN(6);
+				case "n7": return GetArgN(7);
 			}
 
 			error("Could not resolve argument '" + s + "'");
 			return null;
+		}
+
+		private static string GetArg(int i) {
+			return args.Length > i ? "'"+ args[i] + "'" : "''";
+		}
+
+		private static string GetArgN(int i) {
+			if (args.Length <= i) return "NaN";
+			return "" + ParseDouble(args[i].Replace("$", "0x"), null);
 		}
 	}
 }

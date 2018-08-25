@@ -30,14 +30,12 @@ namespace SMPS2ASMv2 {
 
 			// copy args to a
 			if (args != null)
-				for (int i = 0;i < args.Length;i++) {
+				for (int i = 0;i < args.Length;i++)
 					a[i] = args[i];
-				}
 
 			// intitialize rest of a
-			for(int i = args != null ? args.Length : 0; i < a.Length;i++) {
+			for(int i = args != null ? args.Length : 0; i < a.Length;i++)
 				a[i] = "";
-			}
 
 			// init some variables
 			int index = 0, cposs = 0, cpose = 0, txtlen = 0, btnlen = 8, linebase = Console.CursorTop;
@@ -52,7 +50,7 @@ namespace SMPS2ASMv2 {
 				if (br.key.ToString().Length > btnlen - 1)
 					btnlen = br.key.ToString().Length + 1;
 
-			redrawall: {
+			{
 				// clear and setup colors
 				Console.ForegroundColor = ConsoleColor.Gray;
 				// write arg fields
@@ -72,7 +70,8 @@ namespace SMPS2ASMv2 {
 				Console.BackgroundColor = ConsoleColor.Black;
 			}
 
-			renderalltext: {
+			// prepare arguments
+			{
 				int cy = 0;
 				foreach (ArgHandler ar in ah) {
 					string s = ar.check(a[cy], false);
@@ -83,13 +82,32 @@ namespace SMPS2ASMv2 {
 				Console.BackgroundColor = ConsoleColor.Black;
 			}
 
+			// redraw the current string
 			selectionchanged:
 			Console.SetCursorPosition(txtlen, index + linebase);
 			WriteAt(a[index], 0, Math.Min(cposs, cpose), ConsoleColor.Gray, ConsoleColor.Black);
 			WriteAt(a[index], Math.Min(cposs, cpose), Math.Max(cposs, cpose), ConsoleColor.Black, ConsoleColor.Gray);
 			WriteAt(a[index], Math.Max(cposs, cpose), a[index].Length, ConsoleColor.Gray, ConsoleColor.Black);
+
+			// align to buffer width
 			int zzz = Console.BufferWidth - a[index].Length - txtlen;
 			if(zzz > 0) WriteAt(new string(' ', Console.BufferWidth - a[index].Length - txtlen), ConsoleColor.Gray, ConsoleColor.Black);
+
+			// write string for any possible error
+			{
+				string s = ah[index].check(a[index], false);
+				TextOkayColor(s == null);
+
+				if (s != null && a[index].Length > 0) {
+					WriteAt(s + (Console.BufferWidth - s.Length > 0 ? new string(' ', Console.BufferWidth - s.Length) : ""), 0, a.Length + 1 + linebase);
+					Console.BackgroundColor = ConsoleColor.Black;
+
+				} else {
+					Console.BackgroundColor = ConsoleColor.Black;
+					WriteAt(new string(' ', Console.BufferWidth), 0, a.Length + 1 + linebase);
+				}
+			}
+
 			Console.SetCursorPosition(Math.Min(txtlen + cposs, Console.BufferWidth - 1), linebase + index);
 
 			main:
@@ -283,10 +301,8 @@ namespace SMPS2ASMv2 {
 		private static bool WriteCurr(ArgHandler ah, string text, int x, int y, int y2) {
 			string s = ah.check(text, false);
 			TextOkayColor(s == null);
-			if (s != null) WriteAt(s + (Console.BufferWidth - s.Length > 0 ? new string(' ', Console.BufferWidth - s.Length) : ""), 0, y2);
 			WriteAt(text, x, y);
 			Console.BackgroundColor = ConsoleColor.Black;
-
 			return s == null;
 		}
 
@@ -321,7 +337,6 @@ namespace SMPS2ASMv2 {
 
 		private static readonly Mutex mutex = new Mutex(true, Assembly.GetExecutingAssembly().GetName().CodeBase);
 		private static bool _userRequestExit = false;
-		private static bool _doIStop = false;
 		static HandlerRoutine consoleHandler;
 
 		[DllImport("Kernel32")]
