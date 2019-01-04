@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -109,12 +108,12 @@ namespace SMPS2ASMv2 {
 					if (args.Length < 2) {
 						pause = true;
 						args = ConsoleArguments.Get(args, new ArgHandler[] {
-					new ArgHandler("Music file name with extension:", chkfilext2),
-					new ArgHandler("Project name:", chkname), }, new ButtonHandler[]{
-					new ButtonHandler(ConsoleKey.Escape, "Quit the program", quitprg, quitcl),
-					new ButtonHandler(ConsoleKey.F1, "Pause program at the end", pauseprg, pausecl),
-					new ButtonHandler(ConsoleKey.F2, "Print debug info", debugprg, debugcl),
-					});
+							new ArgHandler("Music file name with extension:", chkfilext2),
+							new ArgHandler("Project name:", chkname), }, new ButtonHandler[]{
+							new ButtonHandler(ConsoleKey.Escape, "Quit the program", quitprg, quitcl),
+							new ButtonHandler(ConsoleKey.F1, "Pause program at the end", pauseprg, pausecl),
+							new ButtonHandler(ConsoleKey.F2, "Print debug info", debugprg, debugcl),
+						});
 
 					} else {
 						args[0] = chkfilext2(args[0], true);
@@ -137,7 +136,7 @@ namespace SMPS2ASMv2 {
 					new ButtonHandler(ConsoleKey.Escape, "Quit the program", quitprg, quitcl),
 					new ButtonHandler(ConsoleKey.F1, "Pause program at the end", pauseprg, pausecl),
 					new ButtonHandler(ConsoleKey.F2, "Print debug info", debugprg, debugcl),
-					});
+				});
 
 			} else {
 				args[0] = chkfilext(args[0], true);

@@ -120,6 +120,7 @@ namespace SMPS2ASMv2 {
 		}
 
 		public static string ParseNumber(string s, uint? lnun) {
+			string old = s;
 			try {
 				char type = '\0';
 				int len = 0;
@@ -177,7 +178,11 @@ namespace SMPS2ASMv2 {
 				}
 
 			} catch (Exception e) {
-				if (debug) Debug("--! ERROR: " + e.ToString());
+				if (debug) {
+					Debug("--! ERROR IN EXPRESSION: " + s);
+					Debug("--! INITIAL EXPRESSION: " + old);
+					Debug("--! " + e.ToString());
+				}
 			//	Console.WriteLine("'"+ s +"' "+ e);
 				return "";
 			}

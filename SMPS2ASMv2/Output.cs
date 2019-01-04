@@ -5,6 +5,8 @@ using static SMPS2ASMv2.Program;
 
 namespace SMPS2ASMv2 {
 	public static class Output {
+		public static string DataMacro = "dc.b";
+
 		public static void DoIt(ConvertSMPS cvt) {
 			if (debug) Debug("--; Prepare output to "+ cvt.fileout);
 			// if file exists already
@@ -25,7 +27,7 @@ namespace SMPS2ASMv2 {
 			OffsetString last = null;
 
 			// used for nicely formatting dc.b's
-			string line = "\tdc.b ";
+			string line = "\t"+ DataMacro + " ";
 			int bytes = 0;
 			bool unused = false; // if last was unused
 			bool lastlable = true; // if last line was a lable. Essentially just omits extra newline
@@ -43,7 +45,7 @@ namespace SMPS2ASMv2 {
 							lastlable = false;
 							writer.WriteLine(line.Substring(0, line.Length - 2) + (unused ? "\t; Unused" : ""));
 							if (debug) Debug(i, line.Substring(0, line.Length - 2) + (unused ? "\t; Unused" : ""));
-							line = "\tdc.b ";
+							line = "\t" + DataMacro + " ";
 							bytes = 0;
 						}
 
@@ -78,7 +80,7 @@ namespace SMPS2ASMv2 {
 							if (unused) {
 								if (bytes > 0) writer.WriteLine(line.Substring(0, line.Length - 2) + "\t; Unused");
 								if (debug) Debug(i, line.Substring(0, line.Length - 2) + "\t; Unused");
-								line = "\tdc.b ";
+								line = "\t" + DataMacro + " ";
 								bytes = 0;
 							}
 
@@ -93,7 +95,7 @@ namespace SMPS2ASMv2 {
 							if (bytes >= 8) {
 								writer.WriteLine(line.Substring(0, line.Length - 2));
 								if (debug) Debug(i, line.Substring(0, line.Length - 2));
-								line = "\tdc.b ";
+								line = "\t" + DataMacro + " ";
 								bytes = 0;
 							}
 
@@ -113,7 +115,7 @@ namespace SMPS2ASMv2 {
 								if (bytes > 0) {
 									writer.WriteLine(line.Substring(0, line.Length - 2) + (unused ? "\t; Unused" : ""));
 									if (debug) Debug(i, line.Substring(0, line.Length - 2) + (unused ? "\t; Unused" : ""));
-									line = "\tdc.b ";
+									line = "\t" + DataMacro + " ";
 									bytes = 0;
 								}
 
@@ -135,7 +137,7 @@ namespace SMPS2ASMv2 {
 					if (!unused) {
 						if (bytes > 0) writer.WriteLine(line.Substring(0, line.Length - 2));
 						if (debug) Debug(i, line.Substring(0, line.Length - 2));
-						line = "\tdc.b ";
+						line = "\t" + DataMacro + " ";
 						bytes = 0;
 					}
 
@@ -149,7 +151,7 @@ namespace SMPS2ASMv2 {
 					if (bytes >= 8) {
 						writer.WriteLine(line.Substring(0, line.Length - 2) + "\t; Unused");
 						if (debug) Debug(i, line.Substring(0, line.Length - 2) + "\t; Unused");
-						line = "\tdc.b ";
+						line = "\t" + DataMacro + " ";
 						bytes = 0;
 					}
 				}

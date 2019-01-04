@@ -450,24 +450,35 @@ namespace SMPS2ASMv2 {
 									string mac = line.Substring(1, idx >= 0 ? idx - 1 : line.Length - 1);
 
 									switch (mac.ToLowerInvariant()) {
-										case "inc":
-											if(idx == -1) screrr(lnum, "Macro does not have a file name!");
-											string path = line.Substring(idx + 1, line.Length - idx - 1);
+										case "inc": {
+												if (idx == -1) screrr(lnum, "Macro does not have a file name!");
+												string path = line.Substring(idx + 1, line.Length - idx - 1);
 
-											if (path.StartsWith("\"") && path.EndsWith("\""))
-												path = path.Substring(1, path.Length - 2);
+												if (path.StartsWith("\"") && path.EndsWith("\""))
+													path = path.Substring(1, path.Length - 2);
 
-											if(!File.Exists(path)) screrr(lnum, "File '"+ path +"' does not exist!");
+												if (!File.Exists(path)) screrr(lnum, "File '" + path + "' does not exist!");
 
-											try {
-												string[] file = File.ReadAllLines(path);
-												if (debug) Debug(lnum, tabs, "--; macro: parse another file '"+ path +"' ("+ file.Length +" lines)");
-												ParseScript(string.Join("\n", file), args, 0, ref stack);
-												if (debug) Debug(lnum, tabs, "--; return to previous file");
+												try {
+													string[] file = File.ReadAllLines(path);
+													if (debug) Debug(lnum, tabs, "--; macro: parse another file '" + path + "' (" + file.Length + " lines)");
+													ParseScript(string.Join("\n", file), args, 0, ref stack);
+													if (debug) Debug(lnum, tabs, "--; return to previous file");
 
-											} catch(Exception ex) {
-												screrr(lnum, "Failed to load file contents for file '"+ path +"'!");
+												} catch (Exception ex) {
+													screrr(lnum, "Failed to load file contents for file '" + path + "'!");
+												}
 											}
+											break;
+
+										case "datamacro": {
+												if (idx == -1) screrr(lnum, "Data macro has not been defined!");
+												Output.DataMacro = line.Substring(idx + 1, line.Length - idx - 1).Trim();
+											}
+											break;
+
+										case "version": 
+											// lol
 											break;
 
 										default:
