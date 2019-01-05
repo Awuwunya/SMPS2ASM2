@@ -156,6 +156,14 @@ namespace SMPS2ASMv2 {
 					}
 				}
 			}
+
+			// check if any unused bytes weren't written
+			if (bytes > 0) {
+				writer.WriteLine(line.Substring(0, line.Length - 2) + "\t; Unused");
+				if (debug) Debug((uint)(cvt.offset + cvt.data.Length), line.Substring(0, line.Length - 2) + "\t; Unused");
+				bytes = 0;
+			}
+
 			writer.Flush();
 		}
 	}
