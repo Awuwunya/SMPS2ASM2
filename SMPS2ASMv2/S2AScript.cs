@@ -477,6 +477,17 @@ namespace SMPS2ASMv2 {
 											}
 											break;
 
+										case "lablenumber": {
+												if (idx == -1) screrr(lnum, "Lable number format has not been defined!");
+												string fmt = line.Substring(idx + 1, line.Length - idx - 1).Trim().ToLowerInvariant();
+
+												if(LableRule.RandomRules[fmt] == null)
+													screrr(lnum, "Invalid lable number format '"+ fmt +"'!");
+
+												LableRule.GetNextRandom = LableRule.RandomRules[fmt];
+											}
+											break;
+
 										case "version": 
 											// lol
 											break;

@@ -345,7 +345,7 @@ namespace SMPS2ASMv2 {
 						ulong off = 0;
 
 						foreach (OffsetString o in ConvertSMPS.context.Lables) {
-							if (o.offset <= ConvertSMPS.context.pos && o.offset != null && o.offset >= 0) {
+							if (o.offset <= ConvertSMPS.context.pos + ConvertSMPS.context.offset && o.offset != null && o.offset >= 0) {
 								off = (uint)o.offset;
 								break;
 							}

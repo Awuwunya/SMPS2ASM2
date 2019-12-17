@@ -6,6 +6,15 @@ using System.Text.RegularExpressions;
 using static SMPS2ASMv2.Program;
 
 namespace SMPS2ASMv2 {
+	public class LableRule {
+		public static Dictionary<string, Func<int, string>> RandomRules = new Dictionary<string, Func<int, string>>() {
+			{ "normal", (num) => "" + (num + 1) },
+			{ "dec", (num) => "" + num },
+			{ "hex", (num) => "" + num.ToString("X2") },
+		};
+		public static Func<int, string> GetNextRandom = RandomRules["normal"];
+	}
+
 	public class ConvertSMPS {
 		// ref to current obj
 		public static ConvertSMPS context;
@@ -60,7 +69,7 @@ namespace SMPS2ASMv2 {
 		}
 
 		// generate valid lables from a specific rule and position
-		private bool ObtainValidLable(string lable, uint position, out string valid, out OffsetString lab) {
+		private bool ObtainValidLable(string lable, string lastlable, uint position, out string valid, out OffsetString lab) {
 			valid = null;
 			lab = null;
 			if (lable == "") return false;
@@ -73,11 +82,11 @@ namespace SMPS2ASMv2 {
 				}
 
 			// get num of lables that match rule, and return if no wildcard
-			int num = GetLablesRule(lable).Count;
+			int num = GetLablesRule(lable, lastlable).Count;
 			if (num != 0 && !lable.Contains("?")) return false;
 
 			// build lable, add it to pool, and return
-			valid = lable.Replace("£", baselable).Replace("?", "" + (num + 1));
+			valid = lable.Replace("£", baselable).Replace("%", lastlable).Replace("?", LableRule.GetNextRandom(num));
 			lab = AddLable(position, valid);
 			return true;
 		}
@@ -145,7 +154,7 @@ namespace SMPS2ASMv2 {
 			// run conveter
 			string[] a = null;
 			if (debug) Debug("--> Start conversion with subscript ''");
-			ConvertRun(scr.subscripts[""].Items, ref a, out bool asses, out string c);
+			ConvertRun(scr.subscripts[""].Items, ref a, baselable, out bool asses, out string c);
 			if (debug) Debug(new string('-', 80));
 		}
 
@@ -211,13 +220,13 @@ namespace SMPS2ASMv2 {
 			return rout;
 		}
 
-		private void Convert(string label, GenericScriptItem[] LUT, List<GenericScriptItem>[] run, bool str, out string text) {
+		private void Convert(string label, string lastlable, GenericScriptItem[] LUT, List<GenericScriptItem>[] run, bool str, out string text) {
 			text = null;
 			// init some vars
 			InitConvertVars();
 
 			if (label != "") {
-				foreach (OffsetString o in GetLablesRule(label)) {
+				foreach (OffsetString o in GetLablesRule(label, lastlable)) {
 					Convert(o, LUT, run, str, out text);
 				}
 			} else Convert(new OffsetString(offset, 0, null), LUT, run, str, out text);
@@ -225,6 +234,7 @@ namespace SMPS2ASMv2 {
 
 		private GenericScriptItem[] StoredLUT = null;
 		private List<GenericScriptItem>[] StoredRun = null;
+
 		private void Convert(OffsetString o, GenericScriptItem[] LUT, List<GenericScriptItem>[] run, bool str, out string text) {
 			// empty list to be ref'd later (idk =/ )
 			string[] args = null;
@@ -244,7 +254,7 @@ namespace SMPS2ASMv2 {
 			if (LUT == null) {
 				followlables = false;
 				foreach (List<GenericScriptItem> en in run) {
-					ConvertRun(en, ref args, out bool stop, out string c);
+					ConvertRun(en, ref args, o.line, out bool stop, out string c);
 					if (stop) return;
 				}
 				return;
@@ -258,12 +268,12 @@ namespace SMPS2ASMv2 {
 			}
 
 			while (true) {
-				if (ProcessItem(LUT, str, out bool stop, out text)) {
+				if (ProcessItem(LUT, str, o.line, out bool stop, out text)) {
 					if (stop) break;
 
 				} else if (run != null && run.Length > 0) {
 					foreach (List<GenericScriptItem> en in run) {
-						ConvertRun(en, ref args, out bool stop2, out string c);
+						ConvertRun(en, ref args, o.line, out bool stop2, out string c);
 						if (stop2) return;
 					}
 				} else {
@@ -291,12 +301,12 @@ namespace SMPS2ASMv2 {
 		}
 
 		// get a list of lables that match regex. Lables may additionally use £ to get the base lable (user input) and ? for regex anything matches.
-		private List<OffsetString> GetLablesRule(string label) {
+		private List<OffsetString> GetLablesRule(string label, string lastlable) {
 			// create regex to match all lables against. Additionally, compile it if enough lable entries.
 			Regex r;
 			if(Lables.Count > 25)
-				r = new Regex(label.Replace("?", ".*").Replace("£", baselable), RegexOptions.IgnoreCase | RegexOptions.Compiled);
-			else r = new Regex(label.Replace("?", ".*").Replace("£", baselable), RegexOptions.IgnoreCase);
+				r = new Regex(label.Replace("?", ".*").Replace("£", baselable).Replace("%", lastlable), RegexOptions.IgnoreCase | RegexOptions.Compiled);
+			else r = new Regex(label.Replace("?", ".*").Replace("£", baselable).Replace("%", lastlable), RegexOptions.IgnoreCase);
 
 			List<OffsetString> ret = new List<OffsetString>();
 			foreach(OffsetString o in Lables) {
@@ -307,18 +317,18 @@ namespace SMPS2ASMv2 {
 			return ret;
 		}
 
-		private void ConvertRun(List<GenericScriptItem> s, ref string[] args, out bool stop, out string comment) {
+		private void ConvertRun(List<GenericScriptItem> s, ref string[] args, string lastlable, out bool stop, out string comment) {
 			// default values
 			comment = null;
 			stop = false;
 
 			foreach(GenericScriptItem i in s) {
-				ProcessItem(i, ref args, out stop, out comment);
+				ProcessItem(i, ref args, lastlable, out stop, out comment);
 				if (stop) break;
 			}
 		}
 
-		private bool ProcessItem(GenericScriptItem[] lut, bool str, out bool stop, out string text) {
+		private bool ProcessItem(GenericScriptItem[] lut, bool str, string lastlable, out bool stop, out string text) {
 			text = null;
 			// default values
 			stop = str;
@@ -339,18 +349,18 @@ namespace SMPS2ASMv2 {
 				case ScriptItemType.Macro:
 					if (str) cvterror(lut[d], "Macros can not be used in Argument Modifiers!");
 					SkipByte(pos++);	// skip over current byte
-					ProcessMacro(lut[d] as ScriptMacro, out stop);
+					ProcessMacro(lut[d] as ScriptMacro, lastlable, out stop);
 					return true;
 
 				case ScriptItemType.ArrayItem:
 					SkipByte(pos++);
-					return ProcessItem((lut[d] as ScriptArrayItem).Optimized, str, out stop, out text);
+					return ProcessItem((lut[d] as ScriptArrayItem).Optimized, str, lastlable, out stop, out text);
 
 				case ScriptItemType.Import:
 					ScriptArray sc = scr.GetSubscript((lut[d] as ScriptImport).name);
 					if (sc.Optimized == null) sc.Optimize();
 					uint x = pos;
-					bool ret = ProcessItem(scr.GetSubscript((lut[d] as ScriptImport).name).Optimized, str, out stop, out text);
+					bool ret = ProcessItem(scr.GetSubscript((lut[d] as ScriptImport).name).Optimized, str, lastlable, out stop, out text);
 					pos = x;
 					stop = true;
 					return ret;
@@ -367,7 +377,7 @@ namespace SMPS2ASMv2 {
 			return false;
 		}
 
-		private void ProcessItem(GenericScriptItem i, ref string[] args, out bool stop, out string comment) {
+		private void ProcessItem(GenericScriptItem i, ref string[] args, string lastlable, out bool stop, out string comment) {
 			// default values
 			comment = null;
 			stop = false;
@@ -385,7 +395,7 @@ namespace SMPS2ASMv2 {
 						break;
 
 					case ScriptItemType.Macro:
-						if(CheckMacro(i as ScriptMacro)) ProcessMacro(i as ScriptMacro, out stop);
+						if(CheckMacro(i as ScriptMacro)) ProcessMacro(i as ScriptMacro, lastlable, out stop);
 						break;
 
 					case ScriptItemType.Operation:
@@ -406,11 +416,11 @@ namespace SMPS2ASMv2 {
 
 							if (c) {
 								if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (true)");
-								ConvertRun(cond.True.Items, ref args, out stop, out comment);
+								ConvertRun(cond.True.Items, ref args, lastlable, out stop, out comment);
 
 							} else {
 								if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (false)");
-								ConvertRun(cond.False.Items, ref args, out stop, out comment);
+								ConvertRun(cond.False.Items, ref args, lastlable, out stop, out comment);
 							}
 						}
 						break;
@@ -420,7 +430,7 @@ namespace SMPS2ASMv2 {
 						if (debug) Debug(pos + offset, i.line, i.identifier, "f " + ccc + " {");
 
 						for (int nnn = ccc;nnn > 0;nnn--) {
-							ConvertRun((i as ScriptRepeat).Inner.Items, ref args, out stop, out comment);
+							ConvertRun((i as ScriptRepeat).Inner.Items, ref args, lastlable, out stop, out comment);
 						}
 						break;
 
@@ -437,7 +447,7 @@ namespace SMPS2ASMv2 {
 
 								if (debug) Debug(pos + offset, i.line, i.identifier, "w " + c + " {");
 								if (!c) break;
-								ConvertRun((i as ScriptWhile).Inner.Items, ref args, out stop, out comment);
+								ConvertRun((i as ScriptWhile).Inner.Items, ref args, lastlable, out stop, out comment);
 							}
 						}
 						break;
@@ -495,13 +505,13 @@ namespace SMPS2ASMv2 {
 							}
 
 							if (debug) Debug(pos + offset, i.line, i.identifier, '/' + sex.label);
-							Convert(sex.label, Combine(opt.ToArray()), dir.ToArray(), false, out string fuck);
+							Convert(sex.label, lastlable, Combine(opt.ToArray()), dir.ToArray(), false, out string fuck);
 						}
 						break;
 
 					case ScriptItemType.Import:
 						if (debug) Debug(pos + offset, i.line, i.identifier, '?' + (i as ScriptImport).name + ';');
-						ConvertRun(scr.GetSubscript((i as ScriptImport).name).Items, ref args, out stop, out comment);
+						ConvertRun(scr.GetSubscript((i as ScriptImport).name).Items, ref args, lastlable, out stop, out comment);
 						break;
 
 					case ScriptItemType.ArgMod: {
@@ -523,7 +533,7 @@ namespace SMPS2ASMv2 {
 							if (am.Inner.Optimized == null) am.Inner.Optimize();
 
 							// process request
-							Convert("", am.Inner.Optimized, null, true, out args[am.num]);
+							Convert("", lastlable, am.Inner.Optimized, null, true, out args[am.num]);
 							followlables = fol;
 							pos = pos3;
 							data = dat;
@@ -583,7 +593,7 @@ namespace SMPS2ASMv2 {
 								cvterror(i, "Failed to convert argument to number at line " + i.line + "! Argument '" + args[lmod.num] + "' is not a valid number!");
 							}
 
-							if (!ObtainValidLable(Parse.GetAllOperators(lmod.lable), n, out args[lmod.num], out OffsetString lab))
+							if (!ObtainValidLable(Parse.GetAllOperators(lmod.lable), lastlable, n, out args[lmod.num], out OffsetString lab))
 								cvterror(i, "Failed to fetch a valid lable with format '" + Parse.ParseNumber(lmod.lable.Replace("£", baselable), i.line) + "' at line " + i.line + ": Lable already taken.");
 
 							if (debug) Debug(pos + offset, i.line, i.identifier, '~' + args[lmod.num] + " :" + lmod.num + ' ' + (lab != null ? toHexString((uint)lab.offset, 4) : "NULL"));
@@ -600,7 +610,7 @@ namespace SMPS2ASMv2 {
 
 					case ScriptItemType.LableDo:
 						LableCreate lcr = i as LableCreate;
-						if(!ObtainValidLable(lcr.lable, Parse.ParseUint(lcr.oper, i.line), out string shite, out OffsetString crapp))
+						if(!ObtainValidLable(lcr.lable, lastlable, Parse.ParseUint(lcr.oper, i.line), out string shite, out OffsetString crapp))
 							cvterror(i, "Failed to create lable '"+ lcr.lable +"' with operation '"+ lcr.oper +"'!");
 						if (debug) Debug(pos + offset, i.line, i.identifier, '~' + shite + ' ' + lcr.oper + ' ' + toHexString((uint)crapp.offset, 4));
 						break;
@@ -664,7 +674,7 @@ namespace SMPS2ASMv2 {
 			return true;
 		}
 
-		private void ProcessMacro(ScriptMacro ma, out bool stop) {
+		private void ProcessMacro(ScriptMacro ma, string lastlable, out bool stop) {
 			uint pos2 = pos;
 			pos -= (uint)ma.pre.Length;
 			string db = "";
@@ -702,7 +712,7 @@ namespace SMPS2ASMv2 {
 			if (debug) Debug(pos2 + offset, ma.line, ma.identifier, db.Substring(0, db.Length - 2));
 
 			// run inner shite
-			ConvertRun(ma.Inner.Items, ref args, out stop, out string comment);
+			ConvertRun(ma.Inner.Items, ref args, lastlable, out stop, out string comment);
 
 			// if comment is not null, add it
 			if (comment != null)
