@@ -138,10 +138,13 @@ namespace SMPS2ASMv2 {
 
 							case '/':
 								// get the label only if there is a space char
+								bool singlemode = line.Length > 1 && line.ElementAt(1) == '/';
+								line = line.Substring(singlemode ? 2 : 1);
+
 								string lbl = "";
 								int ind;
 								if ((ind = line.IndexOf(' ')) != -1) {
-									lbl = line.Substring(1, ind - 1);
+									lbl = line.Substring(0, ind);
 									line = line.Substring(ind + 1);
 								}
 
@@ -168,7 +171,7 @@ namespace SMPS2ASMv2 {
 									line = line.Substring(last);
 								}
 								
-								stack.Peek().Add(new ScriptExecute(lnum, stack.Peek(), lbl, types.ToArray(), names.ToArray()));
+								stack.Peek().Add(new ScriptExecute(lnum, stack.Peek(), lbl, types.ToArray(), names.ToArray(), singlemode));
 
 								// write debug info
 								if (debug) {

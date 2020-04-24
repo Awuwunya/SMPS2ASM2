@@ -26,6 +26,7 @@ namespace SMPS2ASMv2 {
 		// and these are conversion
 		public S2AScript scr;
 		public List<OffsetString> Lables, Lines;
+		public List<uint> UnunsedChk;
 		public byte[] data; // data of the file
 		public uint pos = 0; // current position in the script
 		public bool followlables = false;// set to true, if we also want to follow new lables
@@ -144,6 +145,7 @@ namespace SMPS2ASMv2 {
 		public void Convert(S2AScript scr) {
 			if (debug) Debug("Prepare conversion");
 			this.scr = scr;
+			UnunsedChk = new List<uint>();
 			Lables = new List<OffsetString>();
 			Lines = new List<OffsetString>();
 			data = File.ReadAllBytes(filein);
@@ -155,6 +157,29 @@ namespace SMPS2ASMv2 {
 			string[] a = null;
 			if (debug) Debug("--> Start conversion with subscript ''");
 			ConvertRun(scr.subscripts[""].Items, ref a, baselable, out bool asses, out string c);
+
+			// convert unused data
+			if (scr.subscripts.ContainsKey("unused")) {
+				List<GenericScriptItem> uscr = scr.subscripts["unused"].Items;
+
+				for(int i = 0;i < UnunsedChk.Count;i ++) {
+					uint p = UnunsedChk[i];
+
+					// check if this is not used
+					if (skipped[p]) continue;
+
+					foreach(OffsetString o in Lines) {
+						if (o.offset <= p && o.offset + o.length >= p)
+							goto next;
+					}
+
+					// unused, deal with it
+					pos = p;
+					ConvertRun(uscr, ref a, baselable, out asses, out c);
+
+					next:;
+				}
+			}
 			if (debug) Debug(new string('-', 80));
 		}
 
@@ -220,22 +245,22 @@ namespace SMPS2ASMv2 {
 			return rout;
 		}
 
-		private void Convert(string label, string lastlable, GenericScriptItem[] LUT, List<GenericScriptItem>[] run, bool str, out string text) {
+		private void Convert(string label, string lastlable, GenericScriptItem[] LUT, List<GenericScriptItem>[] run, bool str, bool single, out string text) {
 			text = null;
 			// init some vars
 			InitConvertVars();
 
 			if (label != "") {
 				foreach (OffsetString o in GetLablesRule(label, lastlable)) {
-					Convert(o, LUT, run, str, out text);
+					Convert(o, LUT, run, str, single, out text);
 				}
-			} else Convert(new OffsetString(offset, 0, null), LUT, run, str, out text);
+			} else Convert(new OffsetString(pos + offset, 0, null), LUT, run, str, single, out text);
 		}
 
 		private GenericScriptItem[] StoredLUT = null;
 		private List<GenericScriptItem>[] StoredRun = null;
 
-		private void Convert(OffsetString o, GenericScriptItem[] LUT, List<GenericScriptItem>[] run, bool str, out string text) {
+		private void Convert(OffsetString o, GenericScriptItem[] LUT, List<GenericScriptItem>[] run, bool str, bool single, out string text) {
 			// empty list to be ref'd later (idk =/ )
 			string[] args = null;
 			text = null;
@@ -267,7 +292,7 @@ namespace SMPS2ASMv2 {
 				StoredRun = run;
 			}
 
-			while (true) {
+			do {
 				if (ProcessItem(LUT, str, o.line, out bool stop, out text)) {
 					if (stop) break;
 
@@ -283,7 +308,7 @@ namespace SMPS2ASMv2 {
 
 					if (stop) break;
 				}
-			}
+			} while (!single);
 		}
 
 		// check if the string is in a valid location
@@ -324,7 +349,10 @@ namespace SMPS2ASMv2 {
 
 			foreach(GenericScriptItem i in s) {
 				ProcessItem(i, ref args, lastlable, out stop, out comment);
-				if (stop) break;
+				if (stop) {
+					UnunsedChk.Add(pos);
+					break;
+				}
 			}
 		}
 
@@ -388,6 +416,27 @@ namespace SMPS2ASMv2 {
 					case ScriptItemType.NULL:
 						cvterror(i, "Type of item is NULL! This is most likely a programming error in SMPS2ASM!");
 						return;
+
+					case ScriptItemType.Executable: {
+							ScriptExecute sex = (i as ScriptExecute);
+							List<GenericScriptItem[]> opt = new List<GenericScriptItem[]>();
+							List<List<GenericScriptItem>> dir = new List<List<GenericScriptItem>>();
+
+							for (int si = 0;si < sex.names.Length;si++) {
+								ScriptArray sa = scr.GetSubscript(sex.names[si]);
+								if (sa == null) cvterror(i, "Execute command requested subscript '" + sex.names[si] + "', which does not exist.");
+
+								if (sex.types[si]) {
+									if (sa.Optimized == null) sa.Optimize();
+									opt.Add(sa.Optimized);
+
+								} else dir.Add(sa.Items);
+							}
+
+							if (debug) Debug(pos + offset, i.line, i.identifier, '/' + sex.label);
+							Convert(sex.label, lastlable, Combine(opt.ToArray()), dir.ToArray(), false, sex.singlemode, out string fuck);
+						}
+						break;
 
 					case ScriptItemType.Equate:
 						(i as ScriptEquate).Evaluate();
@@ -488,27 +537,6 @@ namespace SMPS2ASMv2 {
 						stop = true;
 						break;
 
-					case ScriptItemType.Executable: {
-							ScriptExecute sex = (i as ScriptExecute);
-							List<GenericScriptItem[]> opt = new List<GenericScriptItem[]>();
-							List<List<GenericScriptItem>> dir = new List<List<GenericScriptItem>>();
-
-							for (int si = 0;si < sex.names.Length;si++) {
-								ScriptArray sa = scr.GetSubscript(sex.names[si]);
-								if (sa == null) cvterror(i, "Execute command requested subscript '" + sex.names[si] + "', which does not exist.");
-
-								if (sex.types[si]) {
-									if (sa.Optimized == null) sa.Optimize();
-									opt.Add(sa.Optimized);
-
-								} else dir.Add(sa.Items);
-							}
-
-							if (debug) Debug(pos + offset, i.line, i.identifier, '/' + sex.label);
-							Convert(sex.label, lastlable, Combine(opt.ToArray()), dir.ToArray(), false, out string fuck);
-						}
-						break;
-
 					case ScriptItemType.Import:
 						if (debug) Debug(pos + offset, i.line, i.identifier, '?' + (i as ScriptImport).name + ';');
 						ConvertRun(scr.GetSubscript((i as ScriptImport).name).Items, ref args, lastlable, out stop, out comment);
@@ -525,7 +553,7 @@ namespace SMPS2ASMv2 {
 							byte[] dat = data;
 							uint pos3 = pos;
 							bool fol = followlables;
-							pos -= (uint)((args.Length - 1) - am.num);
+							pos = 0;
 							data = new byte[] { Parse.BasicByte(args[am.num]) };
 
 							// debug and optimize array
@@ -533,7 +561,7 @@ namespace SMPS2ASMv2 {
 							if (am.Inner.Optimized == null) am.Inner.Optimize();
 
 							// process request
-							Convert("", lastlable, am.Inner.Optimized, null, true, out args[am.num]);
+							Convert("", lastlable, am.Inner.Optimized, null, true, false, out args[am.num]);
 							followlables = fol;
 							pos = pos3;
 							data = dat;
@@ -600,7 +628,7 @@ namespace SMPS2ASMv2 {
 
 							if (followlables && lab != null && (uint)lab.offset - offset < skipped.Length && !skipped[(uint)lab.offset - offset]) {
 								uint pos2 = pos;
-								Convert(lab, StoredLUT, StoredRun, false, out string fuck);
+								Convert(lab, StoredLUT, StoredRun, false, false, out string fuck);
 								pos = pos2;
 							}
 

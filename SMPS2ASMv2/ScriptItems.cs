@@ -110,11 +110,13 @@ namespace SMPS2ASMv2 {
 		public string label;
 		public bool[] types;	// true if optimizing, false if not
 		public string[] names;
+		public bool singlemode; // if true, scripts and LUT's only execute once
 
-		public ScriptExecute(uint lnum, ScriptArray parent, string lbl, bool[] types, string[] names) : base(lnum, parent, "EXE", ScriptItemType.Executable) {
+		public ScriptExecute(uint lnum, ScriptArray parent, string lbl, bool[] types, string[] names, bool singlemode = false) : base(lnum, parent, "EXE", ScriptItemType.Executable) {
 			label = lbl;
 			this.types = types;
 			this.names = names;
+			this.singlemode = singlemode;
 		}
 	}
 

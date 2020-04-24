@@ -93,13 +93,22 @@ namespace SMPS2ASMv2 {
 			string[] a = args;
 
 			//check if we have a debug option
-			if(args.Length > 0 && args[0] == "-d") {
+			opcheck:
+			if (args.Length > 0 && args[0] == "-d") {
 				args = args.Skip(1).ToArray();
 				debug = true;
+				goto opcheck;
+			}
+
+			//check if we have a pause option
+			if (args.Length > 0 && args[0] == "-p") {
+				args = args.Skip(1).ToArray();
+				pause = true;
+				goto opcheck;
 			}
 
 			//check if a script file was dragged in
-			if(args.Length > 0) {
+			if (args.Length > 0) {
 				if(File.Exists(args[0]) && args[0].EndsWith(".smpss")) {
 					string script = args[0];
 					args = args.Skip(1).ToArray();
