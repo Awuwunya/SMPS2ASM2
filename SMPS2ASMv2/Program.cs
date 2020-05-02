@@ -49,7 +49,7 @@ namespace SMPS2ASMv2 {
 		public static string chkname(string data, bool ret) {
 			return ret ? data : 
 				data.Length == 0 ? "Label must contain at least a single character!" :
-				Char.IsDigit(data.ElementAt(0)) ? "´Label must not start with a digit!" : 
+				Char.IsDigit(data.ElementAt(0)) ? "Label must not start with a digit!" : 
 				new Regex("^[A-Za-z0-9_\\.]+$").IsMatch(data) ? null : "Label may only contain letters a-z, numbers, underscores and dots!";
 		}
 
@@ -89,7 +89,6 @@ namespace SMPS2ASMv2 {
 
 			// args[input file with ext, Sound driver name, label, extra: may be used by script]
 			// get the exe folder
-			folder = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Environment.CurrentDirectory), @""));
 			string[] a = args;
 
 			//check if we have a debug option
@@ -107,9 +106,17 @@ namespace SMPS2ASMv2 {
 				goto opcheck;
 			}
 
+			//check if we have a type option
+			if (args.Length > 1 && args[0] == "-t") {
+				type = args[1];
+				args = args.Skip(2).ToArray();
+				goto opcheck;
+			}
+
 			//check if a script file was dragged in
 			if (args.Length > 0) {
 				if(File.Exists(args[0]) && args[0].EndsWith(".smpss")) {
+					folder = Environment.CurrentDirectory;
 					string script = args[0];
 					args = args.Skip(1).ToArray();
 
@@ -129,14 +136,22 @@ namespace SMPS2ASMv2 {
 						args[1] = chkname(args[1], true);
 					}
 
-					args = new string[] { args[0], script, args[1] };
+					string[] ax = new string[1 + args.Length];
+					ax[0] = args[0];
+					ax[2] = args[1];
+					ax[1] = script;
 
+					for (int i = 3;i < ax.Length;i++)
+						ax[i] = args[i - 1];
+
+					args = ax;
 					goto oops;
 				}
 			}
 
 			// check if all arguments are gotten
 			if (args.Length < 3) {
+				folder = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Environment.CurrentDirectory), @""));
 				pause = true;
 				args = ConsoleArguments.Get(args, new ArgHandler[] {
 					new ArgHandler("Music file name with extension:", chkfilext),
@@ -148,6 +163,7 @@ namespace SMPS2ASMv2 {
 				});
 
 			} else {
+				folder = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Environment.CurrentDirectory), @""));
 				args[0] = chkfilext(args[0], true);
 				args[1] = chkfolext(args[1], true);
 				args[2] = chkname(args[2], true);

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 using static SMPS2ASMv2.Program;
 
@@ -34,6 +35,13 @@ namespace SMPS2ASMv2 {
 		// these will be gotten from the topmost script
 		public string endian = null; // 'big' or 'little'
 		public uint offset = 0;    // offset of the 0th byte of the file. Usually Z80 address where file starts
+		
+		public byte Read(long offset) {
+			if (data.Length > offset)
+				return data[offset];
+
+			throw new DataException($"Failed to read data at ${(pos + offset).ToString("X4")}!");
+		}
 
 		public void cvterror(GenericScriptItem i, string v) {
 			error("smps2asm.smpss:" + (i != null ? i.line +"" : "null") + ": " + v);
@@ -48,7 +56,7 @@ namespace SMPS2ASMv2 {
 		}
 
 		// array for tabulating different strings to a common place
-		private int[] LineAlign = { 8, 24, 64 };
+		private readonly int[] LineAlign = { 8, 24, 64 };
 		private void AddLine(uint pos, uint len, string[] lines) {
 			string s = "";
 			int last = 0;
@@ -107,10 +115,10 @@ namespace SMPS2ASMv2 {
 			if (endian == null) InitConvertVars();
 
 			if(endian.ToLower() == "little") {
-				return (ushort)((data[addr]) | ((data[addr + 1] << 8)));
+				return (ushort)((Read(addr)) | ((Read(addr + 1) << 8)));
 
 			} else if(endian.ToLower() == "big") {
-				return (ushort)((data[addr + 1]) | ((data[addr] << 8)));
+				return (ushort)((Read(addr + 1)) | ((Read(addr) << 8)));
 
 			} else error("Endian '"+ endian +"' is not recognized!");
 			return 0;
@@ -156,7 +164,9 @@ namespace SMPS2ASMv2 {
 			// run conveter
 			string[] a = null;
 			if (debug) Debug("--> Start conversion with subscript ''");
-			ConvertRun(scr.subscripts[""].Items, ref a, baselable, out bool asses, out string c);
+			try {
+				ConvertRun(scr.subscripts[""].Items, ref a, baselable, out bool asses, out string c);
+			} catch (DataException) { }
 
 			// convert unused data
 			if (scr.subscripts.ContainsKey("unused")) {
@@ -174,8 +184,10 @@ namespace SMPS2ASMv2 {
 					}
 
 					// unused, deal with it
-					pos = p;
-					ConvertRun(uscr, ref a, baselable, out asses, out c);
+					try {
+						pos = p;
+						ConvertRun(uscr, ref a, baselable, out bool asses, out string  c);
+					} catch(DataException) { }
 
 					next:;
 				}
@@ -272,8 +284,8 @@ namespace SMPS2ASMv2 {
 			if (!IsValidLocation(o)) return;
 
 			pos = (uint)(o.offset - offset);
-			if(o.line != null) Console.WriteLine("Parsing " + o.line + " at " + toHexString((double)o.offset, 4) + "...");
-			if (debug) Debug("--: "+ o.line +" "+ toHexString((double)o.offset, 4) +" LUT="+ (LUT != null) +" run="+ (run != null));
+			if (o.line != null) Console.WriteLine("Parsing " + o.line + " at " + toHexString((double)o.offset, 4) + "...");
+			if (debug) Debug("--: " + o.line + " " + toHexString((double)o.offset, 4) + " LUT=" + (LUT != null) + " run=" + (run != null));
 
 			// if no LUT, only run sequentially
 			if (LUT == null) {
@@ -302,8 +314,8 @@ namespace SMPS2ASMv2 {
 						if (stop2) return;
 					}
 				} else {
-					if (str) text = toHexString(data[pos], 2);
-					else AddLine(pos, 1, data[pos]);
+					if (str) text = toHexString(Read(pos), 2);
+					else AddLine(pos, 1, Read(pos));
 					SkipByte(pos++);    // skip over current byte
 
 					if (stop) break;
@@ -362,7 +374,7 @@ namespace SMPS2ASMv2 {
 			stop = str;
 
 			// get next byte
-			byte d = data[pos];
+			byte d = Read(pos);
 			if (lut[d] == null) return false;
 
 			switch (lut[d].type) {
@@ -557,7 +569,7 @@ namespace SMPS2ASMv2 {
 							data = new byte[] { Parse.BasicByte(args[am.num]) };
 
 							// debug and optimize array
-							if (debug) Debug(pos + offset, i.line, i.identifier, ":?" + am.num + ' ' + toHexString(data[0], 2) + ' ' + toHexString(pos, 4));
+							if (debug) Debug(pos + offset, i.line, i.identifier, ":?" + am.num + ' ' + toHexString(Read(0), 2) + ' ' + toHexString(pos, 4));
 							if (am.Inner.Optimized == null) am.Inner.Optimize();
 
 							// process request
@@ -681,6 +693,9 @@ namespace SMPS2ASMv2 {
 						cvterror(i, "Type of item is unknown! This is most likely a programming error in SMPS2ASM!");
 						return;
 				}
+			} catch (DataException e) {
+				throw e;
+
 			} catch(Exception e) {
 				cvterror(i, e.ToString());
 			}
@@ -694,7 +709,7 @@ namespace SMPS2ASMv2 {
 					return false;
 
 				// check if in range
-				if (data[pos + i] < rangeStart || data[pos + i] > rangeEnd)
+				if (Read(pos + i) < rangeStart || Read(pos + i) > rangeEnd)
 					return false;
 			}
 
@@ -709,7 +724,7 @@ namespace SMPS2ASMv2 {
 
 			// skip all bytes and create debug stuff
 			for (int x = 0;x < ma.pre.Length;x++) {
-				if (debug) db += ", " + toHexString(data[pos], 2);
+				if (debug) db += ", " + toHexString(Read(pos), 2);
 				pos++;
 			}
 
@@ -749,6 +764,14 @@ namespace SMPS2ASMv2 {
 
 			// remove arguments!
 			Parse.args = new string[0];
+		}
+	}
+	
+	internal class DataException : Exception {
+		public DataException() {
+		}
+
+		public DataException(string message) : base(message) {
 		}
 	}
 }

@@ -142,8 +142,8 @@ namespace SMPS2ASMv2 {
 					}
 
 					// add actual data in
-					line += toHexString(cvt.data[i - cvt.offset], 2) + ", ";
-					if (debug) Debug("--= " + toHexString(cvt.data[i - cvt.offset], 2));
+					line += toHexString(cvt.Read(i - cvt.offset), 2) + ", ";
+					if (debug) Debug("--= " + toHexString(cvt.Read(i - cvt.offset), 2));
 					bytes++;
 					unused = true;
 

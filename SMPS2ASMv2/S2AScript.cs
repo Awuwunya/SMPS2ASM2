@@ -468,7 +468,7 @@ namespace SMPS2ASMv2 {
 													ParseScript(string.Join("\n", file), args, 0, ref stack);
 													if (debug) Debug(lnum, tabs, "--; return to previous file");
 
-												} catch (Exception ex) {
+												} catch (Exception) {
 													screrr(lnum, "Failed to load file contents for file '" + path + "'!");
 												}
 											}

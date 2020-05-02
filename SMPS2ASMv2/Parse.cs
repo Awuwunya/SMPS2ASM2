@@ -249,15 +249,15 @@ namespace SMPS2ASMv2 {
 			switch (s.ToLowerInvariant()) {
 				case "db":
 					ConvertSMPS.context.SkipByte(ConvertSMPS.context.pos);
-					return "" + ConvertSMPS.context.data[ConvertSMPS.context.pos++];
+					return "" + ConvertSMPS.context.Read(ConvertSMPS.context.pos++);
 
 				case "lb":
 					ConvertSMPS.context.SkipByte(ConvertSMPS.context.pos - 1);
-					return "" + ConvertSMPS.context.data[ConvertSMPS.context.pos - 1];
+					return "" + ConvertSMPS.context.Read(ConvertSMPS.context.pos - 1);
 
 				case "nb":
 					ConvertSMPS.context.SkipByte(ConvertSMPS.context.pos);
-					return "" + ConvertSMPS.context.data[ConvertSMPS.context.pos];
+					return "" + ConvertSMPS.context.Read(ConvertSMPS.context.pos);
 
 				case "sb":
 					ConvertSMPS.context.SkipByte(ConvertSMPS.context.pos++);
