@@ -361,11 +361,10 @@ namespace SMPS2ASMv2 {
 
 			foreach(GenericScriptItem i in s) {
 				ProcessItem(i, ref args, lastlable, out stop, out comment);
-				if (stop) {
-					UnunsedChk.Add(pos);
-					break;
-				}
+				if (stop) break;
 			}
+
+			UnunsedChk.Add(pos);
 		}
 
 		private bool ProcessItem(GenericScriptItem[] lut, bool str, string lastlable, out bool stop, out string text) {
