@@ -641,7 +641,7 @@ namespace SMPS2ASMv2 {
 
 					case ScriptItemType.LableDo:
 						LableCreate lcr = i as LableCreate;
-						if(!ObtainValidLable(lcr.lable, lastlable, Parse.ParseUint(lcr.oper, i.line), out string shite, out OffsetString crapp))
+						if(!ObtainValidLable(Expression.Process(lcr.lable), lastlable, Parse.ParseUint(lcr.oper, i.line), out string shite, out OffsetString crapp))
 							cvterror(i, "Failed to create lable '"+ lcr.lable +"' with operation '"+ lcr.oper +"'!");
 						if (debug) Debug(pos + offset, i.line, i.identifier, '~' + shite + ' ' + lcr.oper + ' ' + toHexString((uint)crapp.offset, 4));
 						break;
