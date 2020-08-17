@@ -199,7 +199,6 @@ namespace SMPS2ASMv2 {
 		private void InitConvertVars() {
 			try {
 				// get global subscript
-				ScriptArray b = scr.subscripts[""];
 				endian = S2AScript.GetEquate("endian").val;
 				offset = Parse.BasicUint(S2AScript.GetEquate("offset").val);
 				if (debug) Debug("--> InitConvertVars: endian="+ endian +" offset="+ toHexString(offset, 4));
@@ -465,14 +464,7 @@ namespace SMPS2ASMv2 {
 
 					case ScriptItemType.Condition: {
 							ScriptCondition cond = i as ScriptCondition;
-							bool c;
-
-							try {
-								c = Parse.ParseBool(cond.condition, cond.line);
-
-							} catch (Exception) {
-								c = Parse.ParseDouble(cond.condition, cond.line) != 0;
-							}
+							bool c = Parse.ParseDouble(cond.condition, cond.line) != 0;
 
 							if (c) {
 								if (debug) Debug(pos + offset, i.line, i.identifier, "c " + cond.condition + " (true)");
@@ -576,7 +568,7 @@ namespace SMPS2ASMv2 {
 							followlables = fol;
 							pos = pos3;
 							data = dat;
-							Parse.args = args;
+							Expression.args = args;
 						}
 						break;
 
@@ -597,7 +589,7 @@ namespace SMPS2ASMv2 {
 
 							// debug and update args
 							if (debug) Debug(pos + offset, i.line, i.identifier, ":-" + am.num + ' ' + a[am.num]);
-							Parse.args = args;
+							Expression.args = args;
 						}
 						break;
 
@@ -613,7 +605,7 @@ namespace SMPS2ASMv2 {
 
 							// debug and update args
 							if (debug) Debug(pos + offset, i.line, i.identifier, ":=" + am.num + ' ' + res);
-							Parse.args = args;
+							Expression.args = args;
 						}
 						break;
 
@@ -632,7 +624,7 @@ namespace SMPS2ASMv2 {
 								cvterror(i, "Failed to convert argument to number at line " + i.line + "! Argument '" + args[lmod.num] + "' is not a valid number!");
 							}
 
-							if (!ObtainValidLable(Parse.GetAllOperators(lmod.lable), lastlable, n, out args[lmod.num], out OffsetString lab))
+							if (!ObtainValidLable(Expression.Process(lmod.lable), lastlable, n, out args[lmod.num], out OffsetString lab))
 								cvterror(i, "Failed to fetch a valid lable with format '" + Parse.ParseNumber(lmod.lable.Replace("£", baselable), i.line) + "' at line " + i.line + ": Lable already taken.");
 
 							if (debug) Debug(pos + offset, i.line, i.identifier, '~' + args[lmod.num] + " :" + lmod.num + ' ' + (lab != null ? toHexString((uint)lab.offset, 4) : "NULL"));
@@ -643,7 +635,7 @@ namespace SMPS2ASMv2 {
 								pos = pos2;
 							}
 
-							Parse.args = args;
+							Expression.args = args;
 						}
 						break;
 
@@ -750,7 +742,7 @@ namespace SMPS2ASMv2 {
 			}
 
 			// write debug info again
-			Parse.args = args;
+			Expression.args = args;
 			if (debug) Debug(pos2 + offset, ma.line, ma.identifier, db.Substring(0, db.Length - 2));
 
 			// run inner shite
@@ -762,7 +754,7 @@ namespace SMPS2ASMv2 {
 			else AddLine(p - (uint)ma.pre.Length, (uint)ma.pre.Length + (pos - p), new string[] { ma.name, String.Join(", ", args) });
 
 			// remove arguments!
-			Parse.args = new string[0];
+			Expression.args = new string[0];
 		}
 	}
 	
