@@ -14,6 +14,9 @@ namespace SMPS2ASMv2 {
 		// array ID for script arrays, for some simpler management
 		public static uint arrayID = 0;
 
+		// current script version
+		public static readonly string VERSION = "v1_2";
+
 		// construct a script error
 		public static void screrr(uint lnum, string v) {
 			error("smps2asm.smpss:" + lnum + ": " + v);
@@ -491,8 +494,9 @@ namespace SMPS2ASMv2 {
 											}
 											break;
 
-										case "version": 
-											// lol
+										case "version":
+											if(line.Substring(idx + 1, line.Length - idx - 1).Trim().ToLowerInvariant() != VERSION)
+												screrr(lnum, "Your script is out of date, and may not be executed! Please update the script to "+ VERSION +"!");
 											break;
 
 										default:
